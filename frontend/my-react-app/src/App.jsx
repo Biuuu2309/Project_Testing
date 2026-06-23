@@ -541,7 +541,10 @@ function App() {
             aria-label="Hướng dẫn sử dụng"
             onClick={startTour}
           >
-            Tour Guide
+            <span className="btn-tour-help-icon" aria-hidden="true">
+              ?
+            </span>
+            <span className="btn-tour-help-label">Hướng dẫn</span>
           </button>
           {!gameId ? (
             <button
