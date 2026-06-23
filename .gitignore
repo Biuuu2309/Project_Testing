@@ -3,6 +3,25 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Python
+backend/.env
+backend/__pycache__/
+backend/**/__pycache__/
+*.pyc
+.venv/
+venv/
+*.env.example
+*.config.py
+# Node
+frontend/my-react-app/node_modules/
+frontend/my-react-app/dist/
+
+# IDE / local
+.history/
+.cursor/
+*.log
+*.sql
+
 # C extensions
 *.so
 
