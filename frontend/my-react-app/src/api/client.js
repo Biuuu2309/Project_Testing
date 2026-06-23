@@ -1,16 +1,25 @@
-const BASE = import.meta.env.VITE_API_URL || '/api'
+const API_URL = import.meta.env.VITE_API_URL
+
+function buildUrl(path) {
+  const endpoint = path.startsWith('/') ? path : `/${path}`
+  if (API_URL) {
+    return `${API_URL.replace(/\/$/, '')}/api${endpoint}`
+  }
+  return `/api${endpoint}`
+}
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, {
+  const url = buildUrl(path)
+  const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
   })
   const contentType = res.headers.get('content-type') || ''
   if (!contentType.includes('application/json')) {
     throw new Error(
-      BASE.startsWith('http')
+      API_URL
         ? 'Phản hồi không hợp lệ từ server'
-        : 'Chưa cấu hình VITE_API_URL trên Vercel — API trả về HTML thay vì JSON',
+        : 'Chưa cấu hình VITE_API_URL — API trả về HTML thay vì JSON',
     )
   }
   const data = await res.json().catch(() => {
@@ -21,6 +30,7 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  health: () => request('/health'),
   getPlayers: () => request('/players'),
   createPlayer: (name) => request('/players', { method: 'POST', body: JSON.stringify({ name }) }),
   deletePlayer: (id) => request(`/players/${id}`, { method: 'DELETE' }),
