@@ -106,6 +106,10 @@
   margin: 0 0 0.65rem;
 }
 
+.tour-tooltip-centered {
+  position: fixed;
+}
+
 .tour-waiting {
   font-size: 0.8rem;
   color: #0d9488;

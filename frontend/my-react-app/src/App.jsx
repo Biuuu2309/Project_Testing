@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from './api/client'
 import TourGuide from './components/TourGuide'
 import { TOUR_STEPS, TOUR_STORAGE_KEY } from './tourSteps'
@@ -86,18 +86,8 @@ function App() {
 
   const [tourOpen, setTourOpen] = useState(false)
   const [tourIndex, setTourIndex] = useState(0)
-  const tourBaseline = useRef({ playersOnEnter: 0, hadScores: false })
-  const tourAdvanceTimer = useRef(null)
-
-  const advanceTour = useCallback((delay = 450) => {
-    if (tourAdvanceTimer.current) clearTimeout(tourAdvanceTimer.current)
-    tourAdvanceTimer.current = setTimeout(() => {
-      setTourIndex((i) => Math.min(i + 1, TOUR_STEPS.length - 1))
-    }, delay)
-  }, [])
 
   const closeTour = useCallback((save = true) => {
-    if (tourAdvanceTimer.current) clearTimeout(tourAdvanceTimer.current)
     setTourOpen(false)
     if (save) localStorage.setItem(TOUR_STORAGE_KEY, '1')
   }, [])
@@ -119,104 +109,16 @@ function App() {
   useEffect(() => {
     if (!tourOpen) return undefined
     const step = TOUR_STEPS[tourIndex]
-    if (!step) return undefined
+    if (!step?.tab || !isMobileLayout()) return undefined
 
-    if (step.tab && isMobileLayout()) {
-      const tabMap = {
-        players: MOBILE_TABS.PLAYERS,
-        actions: MOBILE_TABS.ACTIONS,
-        scores: MOBILE_TABS.SCORES,
-      }
-      setMobileTab(tabMap[step.tab] || MOBILE_TABS.PLAYERS)
+    const tabMap = {
+      players: MOBILE_TABS.PLAYERS,
+      actions: MOBILE_TABS.ACTIONS,
+      scores: MOBILE_TABS.SCORES,
     }
-
-    if (step.id === 'player-add') {
-      tourBaseline.current.playersOnEnter = players.length
-    }
-    if (step.id === 'queue-execute') {
-      tourBaseline.current.hadScores = Boolean(scores)
-    }
-    if (step.id === 'end-session') {
-      tourBaseline.current.hadGameOnEndSessionStep = Boolean(gameId || sessionId)
-    }
-
+    setMobileTab(tabMap[step.tab] || MOBILE_TABS.PLAYERS)
     return undefined
-  }, [tourOpen, tourIndex, players.length, scores])
-
-  useEffect(() => {
-    if (!tourOpen || tourIndex >= TOUR_STEPS.length - 1) return undefined
-    const id = TOUR_STEPS[tourIndex]?.id
-    let ready = false
-
-    switch (id) {
-      case 'player-name':
-        ready = newName.trim().length > 0
-        break
-      case 'player-add':
-        ready = players.length > tourBaseline.current.playersOnEnter
-        break
-      case 'player-select':
-        ready = selectedForTable.length >= 2
-        break
-      case 'start-session':
-        ready = Boolean(gameId)
-        break
-      case 'pick-actor':
-        ready = Boolean(selectedActor)
-        break
-      case 'pick-action':
-        ready = pendingQueue.length > 0
-        break
-      case 'queue-execute':
-        ready = Boolean(scores) && !tourBaseline.current.hadScores
-        break
-      case 'end-round':
-        ready = cumulativeScores.length > 0
-        break
-      case 'end-session':
-        ready = !gameId && !sessionId && tourBaseline.current.hadGameOnEndSessionStep
-        break
-      case 'open-history':
-        ready = showHistory
-        break
-      case 'pick-session':
-        ready = Boolean(selectedHistorySession)
-        break
-      default:
-        break
-    }
-
-    if (!ready) return undefined
-    const delay = id === 'player-name' ? 700 : 450
-    advanceTour(delay)
-    return () => {
-      if (tourAdvanceTimer.current) clearTimeout(tourAdvanceTimer.current)
-    }
-  }, [
-    tourOpen,
-    tourIndex,
-    newName,
-    players.length,
-    selectedForTable.length,
-    gameId,
-    sessionId,
-    selectedActor,
-    pendingQueue.length,
-    scores,
-    cumulativeScores.length,
-    showHistory,
-    selectedHistorySession,
-    advanceTour,
-  ])
-
-  const tourSteps = useMemo(
-    () =>
-      TOUR_STEPS.map((s) => ({
-        ...s,
-        requireAction: tourIndex < TOUR_STEPS.length - 1,
-      })),
-    [tourIndex],
-  )
+  }, [tourOpen, tourIndex])
 
   useEffect(() => {
     if (!gameId) {
@@ -1128,7 +1030,7 @@ function App() {
       <TourGuide
         open={tourOpen}
         step={tourIndex}
-        steps={tourSteps}
+        steps={TOUR_STEPS}
         onNext={() => setTourIndex((i) => Math.min(i + 1, TOUR_STEPS.length - 1))}
         onPrev={() => setTourIndex((i) => Math.max(i - 1, 0))}
         onSkip={() => closeTour(true)}

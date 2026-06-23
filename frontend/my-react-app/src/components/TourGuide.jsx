@@ -7,6 +7,11 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
 }
 
+function findTarget(step) {
+  if (!step?.target) return null
+  return document.querySelector(step.target) || (step.fallback ? document.querySelector(step.fallback) : null)
+}
+
 export default function TourGuide({
   open,
   step,
@@ -21,24 +26,34 @@ export default function TourGuide({
   const [tooltipStyle, setTooltipStyle] = useState({})
 
   const measure = useCallback(() => {
-    if (!open || !current?.target) {
+    if (!open || !current) {
       setRect(null)
       return
     }
-    const el = document.querySelector(current.target)
+
+    const el = findTarget(current)
+    const tooltipWidth = Math.min(320, window.innerWidth - 24)
+
     if (!el) {
       setRect(null)
+      setTooltipStyle({
+        top: '50%',
+        left: '50%',
+        width: tooltipWidth,
+        transform: 'translate(-50%, -50%)',
+      })
       return
     }
+
     el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     const r = el.getBoundingClientRect()
-    const top = r.top - PAD + window.scrollY
-    const left = r.left - PAD + window.scrollX
-    const width = r.width + PAD * 2
-    const height = r.height + PAD * 2
-    setRect({ top, left, width, height, viewTop: r.top - PAD, viewLeft: r.left - PAD })
+    setRect({
+      viewTop: r.top - PAD,
+      viewLeft: r.left - PAD,
+      width: r.width + PAD * 2,
+      height: r.height + PAD * 2,
+    })
 
-    const tooltipWidth = Math.min(320, window.innerWidth - 24)
     const gap = 14
     let tipTop = r.bottom + gap
     let tipLeft = clamp(r.left + r.width / 2 - tooltipWidth / 2, 12, window.innerWidth - tooltipWidth - 12)
@@ -47,12 +62,7 @@ export default function TourGuide({
       tipTop = Math.max(12, r.top - gap - 180)
     }
 
-    if (current.placement === 'left' && r.left > tooltipWidth + 32) {
-      tipLeft = r.left - tooltipWidth - gap
-      tipTop = clamp(r.top, 12, window.innerHeight - 200)
-    }
-
-    setTooltipStyle({ top: tipTop, left: tipLeft, width: tooltipWidth })
+    setTooltipStyle({ top: tipTop, left: tipLeft, width: tooltipWidth, transform: 'none' })
   }, [open, current])
 
   useLayoutEffect(() => {
@@ -76,7 +86,6 @@ export default function TourGuide({
 
   const isFirst = step === 0
   const isLast = step === steps.length - 1
-  const waiting = current.waiting
 
   return (
     <div className="tour-root" role="dialog" aria-modal="true" aria-labelledby="tour-title">
@@ -94,7 +103,7 @@ export default function TourGuide({
         <div className="tour-backdrop" />
       )}
 
-      <div className="tour-tooltip" style={tooltipStyle}>
+      <div className={`tour-tooltip${rect ? '' : ' tour-tooltip-centered'}`} style={tooltipStyle}>
         <div className="tour-tooltip-header">
           <span className="tour-step-count">
             Bước {step + 1}/{steps.length}
@@ -107,7 +116,6 @@ export default function TourGuide({
           {current.title}
         </h3>
         <p className="tour-content">{current.content}</p>
-        {waiting && <p className="tour-waiting">{waiting}</p>}
         <div className="tour-actions">
           {!isFirst && (
             <button type="button" className="btn btn-secondary tour-btn" onClick={onPrev}>
@@ -119,15 +127,9 @@ export default function TourGuide({
               Hoàn tất
             </button>
           ) : (
-            !current.requireAction && (
-              <button
-                type="button"
-                className="btn btn-primary tour-btn"
-                onClick={onNext}
-              >
-                Tiếp theo
-              </button>
-            )
+            <button type="button" className="btn btn-primary tour-btn" onClick={onNext}>
+              Tiếp theo
+            </button>
           )}
         </div>
       </div>
