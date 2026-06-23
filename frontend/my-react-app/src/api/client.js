@@ -5,7 +5,17 @@ async function request(path, options = {}) {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
   })
-  const data = await res.json().catch(() => ({}))
+  const contentType = res.headers.get('content-type') || ''
+  if (!contentType.includes('application/json')) {
+    throw new Error(
+      BASE.startsWith('http')
+        ? 'Phản hồi không hợp lệ từ server'
+        : 'Chưa cấu hình VITE_API_URL trên Vercel — API trả về HTML thay vì JSON',
+    )
+  }
+  const data = await res.json().catch(() => {
+    throw new Error('Không đọc được dữ liệu JSON từ server')
+  })
   if (!res.ok) throw new Error(data.error || 'Lỗi kết nối server')
   return data
 }

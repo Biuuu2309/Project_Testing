@@ -97,18 +97,18 @@ function App() {
 
   const loadPlayers = useCallback(async () => {
     const data = await api.getPlayers()
-    setPlayers(data)
+    setPlayers(Array.isArray(data) ? data : [])
   }, [])
 
   const loadActionTypes = useCallback(async () => {
     const data = await api.getActionTypes()
-    setActionTypes(data)
+    setActionTypes(Array.isArray(data) ? data : [])
   }, [])
 
   const loadOngoingSessions = useCallback(async () => {
     try {
       const data = await api.getOngoingSessions()
-      setOngoingSessions(data)
+      setOngoingSessions(Array.isArray(data) ? data : [])
     } catch {
       setOngoingSessions([])
     }
