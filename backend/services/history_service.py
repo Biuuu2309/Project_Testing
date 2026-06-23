@@ -91,6 +91,10 @@ def get_play_history(limit: int = 200) -> dict:
 
     for session in sessions.values():
         session["rounds"].sort(key=lambda r: r.get("round_number") or 0)
+        session_agg: dict = {}
+        for round_item in session["rounds"]:
+            _merge_matchups(session_agg, round_item.get("matchups", []))
+        session["session_matchups"] = _format_aggregate(session_agg)
 
     session_list = sorted(
         sessions.values(),

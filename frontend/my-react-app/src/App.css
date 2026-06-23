@@ -1224,6 +1224,72 @@
   margin-bottom: 0.25rem;
 }
 
+.history-session-stats {
+  background: linear-gradient(160deg, #f0fdfa 0%, #f8fafc 100%);
+  border: 1px solid #99f6e4;
+  border-radius: 12px;
+  padding: 0.85rem 0.9rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.history-session-stats .history-section-title {
+  margin-bottom: 0;
+}
+
+.history-rank-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.history-rank-chip {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+
+.history-rank-chip strong {
+  color: #1e293b;
+}
+
+.history-rank-chip--top {
+  border-color: #6ee7b7;
+  background: #ecfdf5;
+}
+
+.history-rank-chip--bottom {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.history-stats-empty {
+  margin: 0;
+}
+
+.matchup-detail {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.matchup-detail-sep {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.matchup-block:not(.compact) .matchup-list li {
+  padding: 0.5rem 0.65rem;
+}
+
 .history-section-title {
   font-size: 0.9rem;
   font-weight: 600;

@@ -541,7 +541,7 @@ function App() {
             aria-label="Hướng dẫn sử dụng"
             onClick={startTour}
           >
-            ?
+            Tour Guide
           </button>
           {!gameId ? (
             <button
@@ -1088,11 +1088,76 @@ function HistorySessionButton({ session, onClick }) {
   )
 }
 
+function aggregateSessionMatchups(rounds) {
+  const agg = {}
+  for (const round of rounds || []) {
+    for (const m of round.matchups || []) {
+      const key = `${m.winner_id}-${m.loser_id}`
+      if (!agg[key]) {
+        agg[key] = {
+          winner_id: m.winner_id,
+          loser_id: m.loser_id,
+          winner_name: m.winner_name,
+          loser_name: m.loser_name,
+          points: 0,
+        }
+      }
+      agg[key].points += m.points
+    }
+  }
+  return Object.values(agg)
+    .sort((a, b) => b.points - a.points)
+    .map((m) => ({
+      ...m,
+      label: `${m.winner_name} thắng ${m.loser_name} +${m.points}`,
+    }))
+}
+
+function getSessionCumulativeScores(session) {
+  if (session.cumulative_scores?.length) return session.cumulative_scores
+  const totals = {}
+  for (const round of session.rounds || []) {
+    for (const row of round.results || []) {
+      const pid = row.player_id
+      if (!totals[pid]) {
+        totals[pid] = {
+          player_id: pid,
+          player_name: row.player_name,
+          finish: 0,
+          chat: 0,
+          penalty: 0,
+          total: 0,
+          rounds_played: 0,
+        }
+      }
+      const t = totals[pid]
+      t.finish += row.finish ?? row.finish_points ?? 0
+      t.chat += row.chat ?? row.chat_points ?? 0
+      t.penalty += row.penalty ?? row.penalty_points ?? 0
+      t.total += row.total ?? row.total_points ?? 0
+      t.rounds_played += 1
+    }
+  }
+  return Object.values(totals).sort((a, b) => b.total - a.total)
+}
+
 function HistorySessionDetailModal({ session, onClose }) {
   const playerNames = session.rounds[0]?.players?.map((p) => p.player_name).join(' · ') || ''
   const title = session.isStandalone
     ? session.title
     : `Phiên #${session.session_id}`
+
+  const cumulativeScores = useMemo(() => getSessionCumulativeScores(session), [session])
+  const sessionMatchups = useMemo(
+    () =>
+      session.session_matchups?.length
+        ? session.session_matchups
+        : aggregateSessionMatchups(session.rounds),
+    [session],
+  )
+
+  const topPlayer = cumulativeScores[0]
+  const bottomPlayer = cumulativeScores[cumulativeScores.length - 1]
 
   return (
     <div className="modal-overlay modal-overlay-detail" onClick={onClose}>
@@ -1118,12 +1183,50 @@ function HistorySessionDetailModal({ session, onClose }) {
             <span className="history-badge">{session.rounds.length} ván</span>
           </div>
           {playerNames && <p className="history-players">{playerNames}</p>}
-          {session.cumulative_scores?.length > 0 && (
-            <div className="history-cumulative">
-              <p className="history-subtitle">Tổng điểm phiên</p>
-              <CumulativeTable scores={session.cumulative_scores} />
-            </div>
-          )}
+
+          <section className="history-session-stats">
+            <p className="history-section-title">Thống kê phiên</p>
+
+            {cumulativeScores.length > 0 && (
+              <>
+                {topPlayer && (
+                  <div className="history-rank-summary">
+                    {cumulativeScores.length > 1 &&
+                      topPlayer.total !== bottomPlayer?.total && (
+                      <span className="history-rank-chip history-rank-chip--top">
+                        Dẫn điểm: <strong>{topPlayer.player_name}</strong>{' '}
+                        <span className="pos">+{topPlayer.total}</span>
+                      </span>
+                    )}
+                    {bottomPlayer &&
+                      cumulativeScores.length > 1 &&
+                      bottomPlayer.player_id !== topPlayer?.player_id && (
+                      <span className="history-rank-chip history-rank-chip--bottom">
+                        Thua nhiều nhất: <strong>{bottomPlayer.player_name}</strong>{' '}
+                        <span className={bottomPlayer.total >= 0 ? 'pos' : 'neg'}>
+                          {bottomPlayer.total > 0 ? `+${bottomPlayer.total}` : bottomPlayer.total}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="history-cumulative">
+                  <p className="history-subtitle">Bảng tổng điểm</p>
+                  <CumulativeTable scores={cumulativeScores} />
+                </div>
+              </>
+            )}
+
+            {sessionMatchups.length > 0 ? (
+              <MatchupTable
+                matchups={sessionMatchups}
+                title="Ai thắng ai · ai thua ai (cả phiên)"
+              />
+            ) : (
+              <p className="hint history-stats-empty">Chưa có dữ liệu đối đầu trong phiên này.</p>
+            )}
+          </section>
+
           <p className="history-subtitle">Chi tiết từng ván</p>
           {session.rounds.map((game) => (
             <HistoryRoundBlock
@@ -1156,7 +1259,9 @@ function HistoryRoundBlock({ game, showStandalone }) {
       </div>
       {players && <p className="history-players">{players}</p>}
       <ScoreTable scores={game.results} compact />
-      {game.matchups?.length > 0 && <MatchupTable matchups={game.matchups} compact />}
+      {game.matchups?.length > 0 && (
+        <MatchupTable matchups={game.matchups} compact title="Đối đầu ván này" />
+      )}
       {game.action_log?.length > 0 && (
         <div className="log history-round-log">
           <h3>Lịch sử ván</h3>
@@ -1201,18 +1306,22 @@ function CumulativeTable({ scores }) {
   )
 }
 
-function MatchupTable({ matchups, compact }) {
+function MatchupTable({ matchups, compact, title = 'Đối đầu' }) {
   if (!matchups?.length) return null
   return (
     <div className={`matchup-block ${compact ? 'compact' : ''}`}>
-      <h3>Đối đầu</h3>
+      <h3>{title}</h3>
       <ul className="matchup-list">
         {matchups.map((m, i) => (
           <li key={i}>
             <span className="matchup-winner">{m.winner_name}</span>
             <span className="matchup-vs">thắng</span>
             <span className="matchup-loser">{m.loser_name}</span>
-            <span className="matchup-pts pos">+{m.points}</span>
+            <span className="matchup-detail">
+              <span className="pos">+{m.points}</span>
+              <span className="matchup-detail-sep">·</span>
+              <span className="neg">−{m.points}</span>
+            </span>
           </li>
         ))}
       </ul>
