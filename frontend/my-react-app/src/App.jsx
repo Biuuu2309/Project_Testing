@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api/client'
+import TourGuide from './components/TourGuide'
+import { TOUR_STEPS, TOUR_STORAGE_KEY } from './tourSteps'
 import './App.css'
 
 const MAX_TABLE = 4
@@ -81,6 +83,140 @@ function App() {
   const [pendingQueue, setPendingQueue] = useState([])
   const [ongoingSessions, setOngoingSessions] = useState([])
   const [mobileTab, setMobileTab] = useState(MOBILE_TABS.PLAYERS)
+
+  const [tourOpen, setTourOpen] = useState(false)
+  const [tourIndex, setTourIndex] = useState(0)
+  const tourBaseline = useRef({ playersOnEnter: 0, hadScores: false })
+  const tourAdvanceTimer = useRef(null)
+
+  const advanceTour = useCallback((delay = 450) => {
+    if (tourAdvanceTimer.current) clearTimeout(tourAdvanceTimer.current)
+    tourAdvanceTimer.current = setTimeout(() => {
+      setTourIndex((i) => Math.min(i + 1, TOUR_STEPS.length - 1))
+    }, delay)
+  }, [])
+
+  const closeTour = useCallback((save = true) => {
+    if (tourAdvanceTimer.current) clearTimeout(tourAdvanceTimer.current)
+    setTourOpen(false)
+    if (save) localStorage.setItem(TOUR_STORAGE_KEY, '1')
+  }, [])
+
+  const startTour = useCallback(() => {
+    setTourIndex(0)
+    setTourOpen(true)
+    setMobileTab(MOBILE_TABS.PLAYERS)
+  }, [])
+
+  useEffect(() => {
+    if (!localStorage.getItem(TOUR_STORAGE_KEY)) {
+      const t = setTimeout(() => setTourOpen(true), 600)
+      return () => clearTimeout(t)
+    }
+    return undefined
+  }, [])
+
+  useEffect(() => {
+    if (!tourOpen) return undefined
+    const step = TOUR_STEPS[tourIndex]
+    if (!step) return undefined
+
+    if (step.tab && isMobileLayout()) {
+      const tabMap = {
+        players: MOBILE_TABS.PLAYERS,
+        actions: MOBILE_TABS.ACTIONS,
+        scores: MOBILE_TABS.SCORES,
+      }
+      setMobileTab(tabMap[step.tab] || MOBILE_TABS.PLAYERS)
+    }
+
+    if (step.id === 'player-add') {
+      tourBaseline.current.playersOnEnter = players.length
+    }
+    if (step.id === 'queue-execute') {
+      tourBaseline.current.hadScores = Boolean(scores)
+    }
+    if (step.id === 'end-session') {
+      tourBaseline.current.hadGameOnEndSessionStep = Boolean(gameId || sessionId)
+    }
+
+    return undefined
+  }, [tourOpen, tourIndex, players.length, scores])
+
+  useEffect(() => {
+    if (!tourOpen || tourIndex >= TOUR_STEPS.length - 1) return undefined
+    const id = TOUR_STEPS[tourIndex]?.id
+    let ready = false
+
+    switch (id) {
+      case 'player-name':
+        ready = newName.trim().length > 0
+        break
+      case 'player-add':
+        ready = players.length > tourBaseline.current.playersOnEnter
+        break
+      case 'player-select':
+        ready = selectedForTable.length >= 2
+        break
+      case 'start-session':
+        ready = Boolean(gameId)
+        break
+      case 'pick-actor':
+        ready = Boolean(selectedActor)
+        break
+      case 'pick-action':
+        ready = pendingQueue.length > 0
+        break
+      case 'queue-execute':
+        ready = Boolean(scores) && !tourBaseline.current.hadScores
+        break
+      case 'end-round':
+        ready = cumulativeScores.length > 0
+        break
+      case 'end-session':
+        ready = !gameId && !sessionId && tourBaseline.current.hadGameOnEndSessionStep
+        break
+      case 'open-history':
+        ready = showHistory
+        break
+      case 'pick-session':
+        ready = Boolean(selectedHistorySession)
+        break
+      default:
+        break
+    }
+
+    if (!ready) return undefined
+    const delay = id === 'player-name' ? 700 : 450
+    advanceTour(delay)
+    return () => {
+      if (tourAdvanceTimer.current) clearTimeout(tourAdvanceTimer.current)
+    }
+  }, [
+    tourOpen,
+    tourIndex,
+    newName,
+    players.length,
+    selectedForTable.length,
+    gameId,
+    sessionId,
+    selectedActor,
+    pendingQueue.length,
+    scores,
+    cumulativeScores.length,
+    showHistory,
+    selectedHistorySession,
+    advanceTour,
+  ])
+
+  const tourSteps = useMemo(
+    () =>
+      TOUR_STEPS.map((s) => ({
+        ...s,
+        requireAction: tourIndex < TOUR_STEPS.length - 1,
+      })),
+    [tourIndex],
+  )
 
   useEffect(() => {
     if (!gameId) {
@@ -496,10 +632,20 @@ function App() {
           )}
         </div>
         <div className="header-actions">
+          <button
+            type="button"
+            className="btn btn-outline btn-tour-help"
+            title="Hướng dẫn sử dụng"
+            aria-label="Hướng dẫn sử dụng"
+            onClick={startTour}
+          >
+            ?
+          </button>
           {!gameId ? (
             <button
               type="button"
               className="btn btn-primary"
+              data-tour="start-session"
               disabled={loading || selectedForTable.length < 2}
               onClick={startGame}
             >
@@ -510,21 +656,40 @@ function App() {
               <button
                 type="button"
                 className="btn btn-primary"
+                data-tour="end-round"
                 disabled={loading}
                 onClick={handleCompleteRound}
               >
                 Kết thúc ván {roundNumber}
               </button>
-              <button type="button" className="btn btn-outline" disabled={loading} onClick={openHistory}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                data-tour="history-btn"
+                disabled={loading}
+                onClick={openHistory}
+              >
                 Lịch sử đã chơi
               </button>
-              <button type="button" className="btn btn-secondary" disabled={loading} onClick={handleNewGame}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                data-tour="end-session"
+                disabled={loading}
+                onClick={handleNewGame}
+              >
                 Kết thúc phiên
               </button>
             </>
           )}
           {gameId === null && (
-            <button type="button" className="btn btn-outline" disabled={loading} onClick={openHistory}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              data-tour="history-btn"
+              disabled={loading}
+              onClick={openHistory}
+            >
               Lịch sử đã chơi
             </button>
           )}
@@ -540,11 +705,17 @@ function App() {
             <input
               type="text"
               placeholder="Tên người chơi..."
+              data-tour="player-name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               disabled={loading}
             />
-            <button type="submit" className="btn btn-primary" disabled={loading || !newName.trim()}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              data-tour="player-add"
+              disabled={loading || !newName.trim()}
+            >
               + Thêm
             </button>
           </form>
@@ -607,7 +778,7 @@ function App() {
           )}
 
           {!gameId && (
-            <div className="btn-grid player-picker-scroll">
+            <div className="btn-grid player-picker-scroll" data-tour="player-select">
               {players.map((p) => (
                 <div key={p.id} className={`player-check ${selectedForTable.includes(p.id) ? 'checked' : ''}`}>
                   <label className="player-check-label">
@@ -671,7 +842,7 @@ function App() {
           {gameId && !swapStep && (
             <>
               <p className="section-label">Đang ở bàn</p>
-              <div className="btn-grid">
+              <div className="btn-grid" data-tour="table-players">
                 {tablePlayers.map((p) => (
                   <button
                     key={p.id}
@@ -735,6 +906,7 @@ function App() {
                     <button
                       type="button"
                       className="btn btn-primary btn-queue-run"
+                      data-tour="queue-execute"
                       disabled={loading || pendingQueue.length === 0}
                       onClick={handleExecuteQueue}
                     >
@@ -814,11 +986,11 @@ function App() {
           )}
 
           {!swapStep && step === STEPS.ACTION && (
-            <>
+            <div data-tour="action-panel">
               <ActionGroup title="Về bài" actions={groupedActions.finish} onSelect={handleSelectAction} />
               <ActionGroup title="Chặt" actions={groupedActions.chat} onSelect={handleSelectAction} />
               <ActionGroup title="Phạt" actions={groupedActions.penalty} onSelect={handleSelectAction} />
-            </>
+            </div>
           )}
 
           {!swapStep && (step === STEPS.ACTOR || step === STEPS.TARGET) && (
@@ -908,7 +1080,7 @@ function App() {
                 </details>
               )}
               {!historyLoading && historyData.sessions.length > 0 && (
-                <div className="history-session-list">
+                <div className="history-session-list" data-tour="history-sessions">
                   <p className="history-subtitle">Danh sách phiên</p>
                   {historyData.sessions.map((session) => (
                     <HistorySessionButton
@@ -952,6 +1124,16 @@ function App() {
           onClose={() => setSelectedHistorySession(null)}
         />
       )}
+
+      <TourGuide
+        open={tourOpen}
+        step={tourIndex}
+        steps={tourSteps}
+        onNext={() => setTourIndex((i) => Math.min(i + 1, TOUR_STEPS.length - 1))}
+        onPrev={() => setTourIndex((i) => Math.max(i - 1, 0))}
+        onSkip={() => closeTour(true)}
+        onFinish={() => closeTour(true)}
+      />
 
       <nav className="mobile-nav" aria-label="Điều hướng chính">
         <button
@@ -1025,7 +1207,7 @@ function HistorySessionDetailModal({ session, onClose }) {
             ×
           </button>
         </div>
-        <div className="modal-body history-scroll">
+        <div className="modal-body history-scroll" data-tour="history-detail">
           <div className="history-detail-meta">
             {session.created_at && (
               <span className="history-date">{formatDate(session.created_at)}</span>

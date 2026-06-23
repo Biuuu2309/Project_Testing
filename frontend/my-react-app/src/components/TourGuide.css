@@ -1,0 +1,143 @@
+.tour-root {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  pointer-events: none;
+}
+
+.tour-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  pointer-events: auto;
+}
+
+.tour-spotlight {
+  position: fixed;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.62);
+  border: 2px solid #2dd4bf;
+  pointer-events: none;
+  z-index: 301;
+  transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+  animation: tourPulse 2s ease-in-out infinite;
+}
+
+@keyframes tourPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 9999px rgba(15, 23, 42, 0.62),
+      0 0 0 0 rgba(45, 212, 191, 0.5);
+  }
+  50% {
+    box-shadow:
+      0 0 0 9999px rgba(15, 23, 42, 0.62),
+      0 0 0 6px rgba(45, 212, 191, 0.25);
+  }
+}
+
+.tour-tooltip {
+  position: fixed;
+  z-index: 302;
+  background: #fff;
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.2);
+  border: 1px solid #e2e8f0;
+  pointer-events: auto;
+  animation: tourTooltipIn 0.22s ease;
+}
+
+@keyframes tourTooltipIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tour-tooltip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.tour-step-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #0d9488;
+}
+
+.tour-skip {
+  border: none;
+  background: none;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+}
+
+.tour-skip:hover {
+  color: #64748b;
+  background: #f1f5f9;
+}
+
+.tour-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #115e59;
+  margin: 0 0 0.4rem;
+}
+
+.tour-content {
+  font-size: 0.88rem;
+  color: #475569;
+  line-height: 1.55;
+  margin: 0 0 0.65rem;
+}
+
+.tour-waiting {
+  font-size: 0.8rem;
+  color: #0d9488;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  padding: 0.45rem 0.6rem;
+  background: #f0fdfa;
+  border-radius: 8px;
+  border: 1px dashed #99f6e4;
+}
+
+.tour-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.tour-btn {
+  min-width: 5.5rem;
+}
+
+.tour-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-tour-help {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
