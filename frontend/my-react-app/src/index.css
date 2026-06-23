@@ -1,3 +1,33 @@
+:root {
+  --font: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+  --primary: #0d9488;
+  --primary-dark: #0f766e;
+  --primary-darker: #115e59;
+  --primary-soft: #ccfbf1;
+  --primary-muted: #f0fdfa;
+  --accent: #f59e0b;
+  --bg: #e8eef4;
+  --bg-accent: #d4e8e4;
+  --surface: #ffffff;
+  --surface-raised: #f8fafc;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --success: #059669;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.12);
+  --transition: 0.18s ease;
+}
+
 *,
 *::before,
 *::after {
@@ -7,12 +37,19 @@
 }
 
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background: #f0f4f8;
-  color: #1e293b;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
   min-height: 100vh;
+}
+
+button,
+input {
+  font-family: inherit;
 }

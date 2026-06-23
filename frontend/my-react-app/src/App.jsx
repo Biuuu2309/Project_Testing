@@ -478,12 +478,19 @@ function App() {
       }[step]
 
   const panelTabClass = (tab) => (mobileTab === tab ? 'mobile-panel-active' : '')
+  const stepIndex = [STEPS.ACTOR, STEPS.ACTION, STEPS.TARGET].indexOf(step)
 
   return (
-    <div className="app">
+    <div className={`app${loading ? ' app--loading' : ''}`}>
       <header className="header">
-        <div className="header-title">
-          <h1>Tính điểm Tiến Lên</h1>
+        <div className="header-brand">
+          <div className="header-logo" aria-hidden="true">
+            <span className="header-logo-suit">♠</span>
+          </div>
+          <div className="header-title">
+            <h1>Tính điểm Tiến Lên</h1>
+            <p className="header-subtitle">Chấm điểm nhanh · theo dõi phiên</p>
+          </div>
           {sessionId && (
             <span className="round-badge">Ván {roundNumber}</span>
           )}
@@ -761,7 +768,25 @@ function App() {
           )}
 
           <div className="step-bar">
-            <span className="step-label">{stepLabel}</span>
+            <div className="step-bar-main">
+              {gameId && !swapStep && (
+                <div className="step-progress" aria-hidden="true">
+                  {[STEPS.ACTOR, STEPS.ACTION, STEPS.TARGET].map((s, i) => (
+                    <span
+                      key={s}
+                      className={[
+                        'step-dot',
+                        step === s ? 'active' : '',
+                        stepIndex > i ? 'done' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                    />
+                  ))}
+                </div>
+              )}
+              <span className="step-label">{stepLabel}</span>
+            </div>
             {!swapStep && step !== STEPS.ACTOR && (
               <button
                 type="button"
@@ -774,6 +799,19 @@ function App() {
               </button>
             )}
           </div>
+
+          {!gameId && (
+            <div className="welcome-card">
+              <div className="welcome-card-icon" aria-hidden="true">
+                <span>♠</span>
+                <span>♥</span>
+                <span>♦</span>
+                <span>♣</span>
+              </div>
+              <h3>Sẵn sàng chơi</h3>
+              <p>Thêm người chơi bên trái, chọn 2–{MAX_TABLE} người ở bàn rồi bấm <strong>Bắt đầu phiên</strong>.</p>
+            </div>
+          )}
 
           {!swapStep && step === STEPS.ACTION && (
             <>
