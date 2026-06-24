@@ -850,6 +850,16 @@
   color: #047857;
 }
 
+.matchup-block--loss .matchup-winner {
+  font-weight: 500;
+  color: #64748b;
+}
+
+.matchup-focus {
+  font-weight: 700;
+  color: #b91c1c;
+}
+
 .matchup-loser {
   color: #64748b;
 }

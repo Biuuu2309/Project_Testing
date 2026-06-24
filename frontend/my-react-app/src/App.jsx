@@ -1223,7 +1223,8 @@ function HistorySessionDetailModal({ session, onClose }) {
             {sessionMatchups.length > 0 ? (
               <MatchupTable
                 matchups={sessionMatchups}
-                title="Ai thắng ai · ai thua ai (cả phiên)"
+                title="Ai thua ai bao nhiêu"
+                mode="loss"
               />
             ) : (
               <p className="hint history-stats-empty">Chưa có dữ liệu đối đầu trong phiên này.</p>
@@ -1263,7 +1264,12 @@ function HistoryRoundBlock({ game, showStandalone }) {
       {players && <p className="history-players">{players}</p>}
       <ScoreTable scores={game.results} compact />
       {game.matchups?.length > 0 && (
-        <MatchupTable matchups={game.matchups} compact title="Đối đầu ván này" />
+        <MatchupTable
+          matchups={game.matchups}
+          compact
+          title="Ai thua ai bao nhiêu"
+          mode="loss"
+        />
       )}
       {game.action_log?.length > 0 && (
         <div className="log history-round-log">
@@ -1309,22 +1315,34 @@ function CumulativeTable({ scores }) {
   )
 }
 
-function MatchupTable({ matchups, compact, title = 'Đối đầu' }) {
+function MatchupTable({ matchups, compact, title = 'Đối đầu', mode = 'win' }) {
   if (!matchups?.length) return null
+  const lossView = mode === 'loss'
   return (
-    <div className={`matchup-block ${compact ? 'compact' : ''}`}>
+    <div className={`matchup-block ${compact ? 'compact' : ''}${lossView ? ' matchup-block--loss' : ''}`}>
       <h3>{title}</h3>
       <ul className="matchup-list">
         {matchups.map((m, i) => (
           <li key={i}>
-            <span className="matchup-winner">{m.winner_name}</span>
-            <span className="matchup-vs">thắng</span>
-            <span className="matchup-loser">{m.loser_name}</span>
-            <span className="matchup-detail">
-              <span className="pos">+{m.points}</span>
-              <span className="matchup-detail-sep">·</span>
-              <span className="neg">−{m.points}</span>
-            </span>
+            {lossView ? (
+              <>
+                <span className="matchup-loser matchup-focus">{m.loser_name}</span>
+                <span className="matchup-vs">thua</span>
+                <span className="matchup-winner">{m.winner_name}</span>
+                <span className="matchup-detail neg">−{m.points}</span>
+              </>
+            ) : (
+              <>
+                <span className="matchup-winner">{m.winner_name}</span>
+                <span className="matchup-vs">thắng</span>
+                <span className="matchup-loser">{m.loser_name}</span>
+                <span className="matchup-detail">
+                  <span className="pos">+{m.points}</span>
+                  <span className="matchup-detail-sep">·</span>
+                  <span className="neg">−{m.points}</span>
+                </span>
+              </>
+            )}
           </li>
         ))}
       </ul>
