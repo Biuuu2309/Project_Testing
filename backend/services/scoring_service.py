@@ -124,14 +124,25 @@ def _apply_finish_transfers(
     matchups,
     player_names,
     action_log,
+    nhot_players: set[int] | None = None,
 ):
-    """Nhất +10 từ bốn, nhì +5 từ ba (chuyển điểm, không phạt kép)."""
+    """Nhất +10 từ bốn, nhì +5 từ ba (chuyển điểm, không phạt kép). Người nhốt không bị trừ điểm hạng."""
+    nhot = nhot_players or set()
     by_rank = _rank_map(finish_state)
     for winner_rank, loser_rank, pts in FINISH_TRANSFERS:
         if winner_rank not in by_rank or loser_rank not in by_rank:
             continue
         winner_id = by_rank[winner_rank]
         loser_id = by_rank[loser_rank]
+        if loser_id in nhot:
+            action_log.append({
+                "description": (
+                    f"{player_names[loser_id]} bị nhốt — không trừ điểm hạng "
+                    f"(bỏ qua {player_names[winner_id]} +{pts})"
+                ),
+                "type": "finish_transfer_skip",
+            })
+            continue
         totals[winner_id]["finish"] += pts
         totals[loser_id]["finish"] -= pts
         _add_matchup(matchups, winner_id, loser_id, pts)
@@ -391,7 +402,9 @@ def compute_scores(game_id: int, apply_end_penalties: bool = True) -> dict:
                 "type": "penalty",
             })
 
-    _apply_finish_transfers(finish_state, totals, matchups, player_names, action_log)
+    _apply_finish_transfers(
+        finish_state, totals, matchups, player_names, action_log, nhot_players,
+    )
 
     if apply_end_penalties:
         _apply_end_round_penalties(

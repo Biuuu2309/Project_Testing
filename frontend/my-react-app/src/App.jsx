@@ -6,6 +6,7 @@ import {
   GamePlayerColumns,
   GameQueueBlock,
   getGuideMessage,
+  isRanksCompleteInQueue,
   useGameBoardState,
 } from './components/GameBoard'
 import { TOUR_STEPS, TOUR_STORAGE_KEY } from './tourSteps'
@@ -486,7 +487,17 @@ function App() {
     [],
   )
   const boardEnqueueBatch = useCallback((items) => enqueueActionBatch(items), [])
-  const board = useGameBoardState(actionTypes, tablePlayers, boardEnqueue, boardEnqueueBatch)
+  const ranksLocked = useMemo(
+    () => isRanksCompleteInQueue(pendingQueue, actionTypes, tablePlayers.length),
+    [pendingQueue, actionTypes, tablePlayers.length],
+  )
+  const board = useGameBoardState(
+    actionTypes,
+    tablePlayers,
+    boardEnqueue,
+    boardEnqueueBatch,
+    ranksLocked,
+  )
 
   const guideMessage = getGuideMessage({
     gameId,
@@ -494,7 +505,7 @@ function App() {
     swapExit,
     chatDraft: board.chatDraft,
     currentRankDef: board.currentRankDef,
-    rankDefs: board.rankDefs,
+    ranksLocked,
   })
 
   const panelTabClass = (tab) => (mobileTab === tab ? 'mobile-panel-active' : '')
@@ -740,8 +751,6 @@ function App() {
             <GameGuideBlock
               message={guideMessage}
               chatDraft={board.chatDraft}
-              chatTargets={board.chatTargets}
-              onPickTarget={board.pickChatTarget}
               onCancelChat={board.cancelChat}
               loading={loading}
             />
@@ -762,6 +771,7 @@ function App() {
                 actionTypes={actionTypes}
                 board={board}
                 loading={loading}
+                ranksLocked={ranksLocked}
               />
             )}
 

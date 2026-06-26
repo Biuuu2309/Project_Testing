@@ -7,6 +7,8 @@ const RANK_DEFS = [
   { code: 'VE_BON', label: 'về bốn', short: 'Bét' },
 ]
 
+const FINISH_CODES = new Set(RANK_DEFS.map((r) => r.code))
+
 const PENALTY_BTNS = [
   { code: 'NHOT', label: 'Bị nhốt' },
   { code: 'THUI_HEO_DEN', label: 'Thúi đen' },
@@ -29,7 +31,22 @@ function actionByCode(actionTypes, code) {
   return actionTypes.find((a) => a.code === code)
 }
 
-export function useGameBoardState(actionTypes, tablePlayers, onEnqueue, onEnqueueBatch) {
+export function isRanksCompleteInQueue(pendingQueue, actionTypes, tablePlayerCount) {
+  if (!tablePlayerCount) return false
+  const finishIds = new Set(
+    actionTypes.filter((a) => FINISH_CODES.has(a.code)).map((a) => a.id),
+  )
+  const count = pendingQueue.filter((item) => finishIds.has(item.action_type_id)).length
+  return count >= tablePlayerCount
+}
+
+export function useGameBoardState(
+  actionTypes,
+  tablePlayers,
+  onEnqueue,
+  onEnqueueBatch,
+  ranksLocked,
+) {
   const rankDefs = useMemo(
     () => RANK_DEFS.slice(0, tablePlayers.length),
     [tablePlayers.length],
@@ -50,7 +67,8 @@ export function useGameBoardState(actionTypes, tablePlayers, onEnqueue, onEnqueu
     return map
   }, [rankAssignments])
 
-  const currentRankDef = rankStep < rankDefs.length ? rankDefs[rankStep] : null
+  const currentRankDef =
+    !ranksLocked && rankStep < rankDefs.length ? rankDefs[rankStep] : null
 
   const resetRank = () => {
     setRankStep(0)
@@ -58,7 +76,7 @@ export function useGameBoardState(actionTypes, tablePlayers, onEnqueue, onEnqueu
   }
 
   const handleRankPick = (player) => {
-    if (!currentRankDef || pickedIds.has(player.id) || chatDraft) return
+    if (ranksLocked || !currentRankDef || pickedIds.has(player.id) || chatDraft) return
     const action = actionByCode(actionTypes, currentRankDef.code)
     if (!action) return
 
@@ -90,10 +108,6 @@ export function useGameBoardState(actionTypes, tablePlayers, onEnqueue, onEnqueu
 
   const cancelChat = () => setChatDraft(null)
 
-  const chatTargets = chatDraft
-    ? tablePlayers.filter((p) => p.id !== chatDraft.actor.id)
-    : []
-
   return {
     rankDefs,
     rankStep,
@@ -103,7 +117,6 @@ export function useGameBoardState(actionTypes, tablePlayers, onEnqueue, onEnqueu
     pickedIds,
     resetRank,
     chatDraft,
-    chatTargets,
     handleRankPick,
     handlePenalty,
     startChat,
@@ -118,7 +131,7 @@ export function getGuideMessage({
   swapExit,
   chatDraft,
   currentRankDef,
-  rankDefs,
+  ranksLocked,
 }) {
   if (swapStep === 'exit') return 'Chọn người rút khỏi bàn — dùng panel bên trái'
   if (swapStep === 'enter') {
@@ -128,15 +141,15 @@ export function getGuideMessage({
     return 'Thêm người chơi bên trái, chọn 2–4 người rồi bấm Bắt đầu phiên'
   }
   if (chatDraft) {
-    return `${chatDraft.actor.name} — ${chatDraft.action.name}: chọn người bị chặt`
+    return `${chatDraft.actor.name} — ${chatDraft.action.name}: bấm tên người bị chặt ở cột bên dưới`
+  }
+  if (ranksLocked) {
+    return 'Đã xếp đủ thứ hạng 4 người — dùng phạt / chặt hoặc xác nhận danh sách'
   }
   if (currentRankDef) {
     return `Chọn người ${currentRankDef.label} (bấm tên ở cột người chơi bên dưới)`
   }
-  if (rankDefs.length) {
-    return 'Ghi phạt / chặt bằng nút trong cột người chơi, hoặc bấm tên để xếp hạng lại'
-  }
-  return 'Cần ít nhất 2 người ở bàn'
+  return 'Ghi phạt / chặt bằng nút trong cột người chơi, hoặc bấm tên để xếp hạng'
 }
 
 function formatQueueLabel(item) {
@@ -154,35 +167,20 @@ function formatQueueLabel(item) {
   return item.label
 }
 
-export function GameGuideBlock({
-  message,
-  chatDraft,
-  chatTargets,
-  onPickTarget,
-  onCancelChat,
-  loading,
-}) {
+export function GameGuideBlock({ message, chatDraft, onCancelChat, loading }) {
   return (
     <section className="board-block board-guide" data-tour="action-panel">
       <h3 className="board-block-title">Hướng dẫn</h3>
       <p className="board-guide-text">{message}</p>
       {chatDraft && (
-        <div className="board-guide-targets">
-          {chatTargets.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              className="btn btn-player active-step"
-              disabled={loading}
-              onClick={() => onPickTarget(p)}
-            >
-              {p.name}
-            </button>
-          ))}
-          <button type="button" className="btn btn-link board-guide-cancel" onClick={onCancelChat}>
-            Hủy chặt
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn btn-link board-guide-cancel"
+          disabled={loading}
+          onClick={onCancelChat}
+        >
+          Hủy chặt
+        </button>
       )}
     </section>
   )
@@ -248,6 +246,7 @@ export function GamePlayerColumns({
   actionTypes,
   board,
   loading,
+  ranksLocked,
 }) {
   const {
     currentRankDef,
@@ -257,76 +256,112 @@ export function GamePlayerColumns({
     handleRankPick,
     handlePenalty,
     startChat,
+    pickChatTarget,
   } = board
 
-  const rankActive = Boolean(currentRankDef) && !chatDraft
+  const rankActive = Boolean(currentRankDef) && !chatDraft && !ranksLocked
+  const chatTargetMode = Boolean(chatDraft)
 
   return (
     <section className="board-block board-columns" data-tour="table-players">
       <h3 className="board-block-title">Người ở bàn</h3>
       <div className="player-columns-grid">
-        {tablePlayers.map((player) => (
-          <div key={player.id} className="player-column">
-            <button
-              type="button"
-              className={[
-                'player-column-name',
-                rankActive && !pickedIds.has(player.id) ? 'active-step' : '',
-                rankByPlayer[player.id] ? 'has-rank' : '',
-                chatDraft?.actor.id === player.id ? 'chat-actor' : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              disabled={loading || (rankActive && pickedIds.has(player.id)) || Boolean(chatDraft)}
-              onClick={() => handleRankPick(player)}
-            >
-              {player.name}
-              {rankByPlayer[player.id] && (
-                <span className="player-column-rank">{rankByPlayer[player.id].short}</span>
-              )}
-            </button>
+        {tablePlayers.map((player) => {
+          const isActor = chatDraft?.actor.id === player.id
+          const isChatTarget = chatTargetMode && !isActor
 
-            <div className="player-column-group">
-              <span className="player-column-label">Phạt</span>
-              {PENALTY_BTNS.map((pen) => {
-                const action = actionByCode(actionTypes, pen.code)
-                if (!action) return null
-                return (
-                  <button
-                    key={pen.code}
-                    type="button"
-                    className="btn btn-col-penalty"
-                    disabled={loading || Boolean(chatDraft)}
-                    onClick={() => handlePenalty(player, action)}
-                  >
-                    {pen.label}
-                  </button>
-                )
-              })}
-            </div>
+          if (chatTargetMode && isActor) {
+            return (
+              <div key={player.id} className="player-column player-column--chat-actor">
+                <button type="button" className="player-column-name chat-actor" disabled>
+                  {player.name}
+                  <span className="player-column-chat-hint">{chatDraft.action.name}</span>
+                </button>
+              </div>
+            )
+          }
 
-            <div className="player-column-group">
-              <span className="player-column-label">Chặt</span>
-              {CHAT_BTNS.map((chat) => {
-                const action = actionByCode(actionTypes, chat.code)
-                if (!action) return null
-                const isActive =
-                  chatDraft?.actor.id === player.id && chatDraft?.action.id === action.id
-                return (
-                  <button
-                    key={chat.code}
-                    type="button"
-                    className={`btn btn-col-chat${isActive ? ' selected' : ''}`}
-                    disabled={loading || (Boolean(chatDraft) && !isActive)}
-                    onClick={() => startChat(player, action)}
-                  >
-                    {chat.label}
-                  </button>
-                )
-              })}
+          if (chatTargetMode && isChatTarget) {
+            return (
+              <div key={player.id} className="player-column player-column--chat-target">
+                <button
+                  type="button"
+                  className="player-column-name active-step chat-target"
+                  disabled={loading}
+                  onClick={() => pickChatTarget(player)}
+                >
+                  {player.name}
+                  <span className="player-column-chat-hint">Bị chặt</span>
+                </button>
+              </div>
+            )
+          }
+
+          return (
+            <div key={player.id} className="player-column">
+              <button
+                type="button"
+                className={[
+                  'player-column-name',
+                  rankActive && !pickedIds.has(player.id) ? 'active-step' : '',
+                  rankByPlayer[player.id] ? 'has-rank' : '',
+                  ranksLocked ? 'rank-locked' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                disabled={
+                  loading ||
+                  ranksLocked ||
+                  (rankActive && pickedIds.has(player.id))
+                }
+                onClick={() => handleRankPick(player)}
+              >
+                {player.name}
+                {rankByPlayer[player.id] && (
+                  <span className="player-column-rank">{rankByPlayer[player.id].short}</span>
+                )}
+              </button>
+
+              <div className="player-column-group">
+                <span className="player-column-label">Phạt</span>
+                {PENALTY_BTNS.map((pen) => {
+                  const action = actionByCode(actionTypes, pen.code)
+                  if (!action) return null
+                  return (
+                    <button
+                      key={pen.code}
+                      type="button"
+                      className="btn btn-col-penalty"
+                      disabled={loading}
+                      onClick={() => handlePenalty(player, action)}
+                    >
+                      {pen.label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="player-column-group">
+                <span className="player-column-label">Chặt</span>
+                {CHAT_BTNS.map((chat) => {
+                  const action = actionByCode(actionTypes, chat.code)
+                  if (!action) return null
+                  return (
+                    <button
+                      key={chat.code}
+                      type="button"
+                      className="btn btn-col-chat"
+                      disabled={loading}
+                      onClick={() => startChat(player, action)}
+                    >
+                      {chat.label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </section>
   )

@@ -1790,6 +1790,8 @@
 }
 
 .board-guide-cancel {
+  margin-top: 0.5rem;
+  padding: 0;
   font-size: 0.82rem;
 }
 
@@ -1860,6 +1862,38 @@
 .player-column-name.chat-actor {
   border-color: #f59e0b;
   background: #fffbeb;
+}
+
+.player-column-name.rank-locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: var(--border);
+  background: #f1f5f9;
+}
+
+.player-column-name.chat-target {
+  min-height: 4.5rem;
+}
+
+.player-column-chat-hint {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  margin-top: 0.25rem;
+  opacity: 0.85;
+}
+
+.player-column--chat-actor .player-column-name,
+.player-column--chat-target .player-column-name {
+  min-height: 4.5rem;
+}
+
+.player-column--chat-target .player-column-chat-hint {
+  color: var(--primary-dark);
+}
+
+.player-column--chat-actor .player-column-chat-hint {
+  color: #b45309;
 }
 
 .player-column-rank {
