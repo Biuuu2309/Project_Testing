@@ -880,23 +880,20 @@ function App() {
                   <p className="hint">Chưa có ván nào được ghi nhận</p>
                 )}
               {!historyLoading && historyData.aggregate_matchups.length > 0 && (
-                <details className="history-accordion history-stats-accordion">
-                  <summary className="history-accordion-summary">
-                    <span>Thống kê đối đầu (tất cả)</span>
+                <section className="history-session-stats history-aggregate-stats">
+                  <p className="history-section-title">
+                    Thống kê đối đầu (tất cả)
                     <span className="history-badge">{historyData.aggregate_matchups.length} cặp</span>
-                  </summary>
-                  <div className="history-accordion-body history-scroll">
-                    <p className="hint history-stats-hint">
-                      Đối đầu ròng từng cặp — gộp hai chiều (A ăn B và B ăn A) thành bết lưỡi
-                    </p>
-                    <MatchupTable
-                      matchups={historyData.aggregate_matchups}
-                      compact
-                      title="Ai thua ai (ròng)"
-                      mode="loss"
-                    />
-                  </div>
-                </details>
+                  </p>
+                  <p className="hint history-stats-hint history-matchup-hint">
+                    Mỗi dòng là kết quả ròng giữa 2 người — xem chi tiết hai chiều bên dưới từng dòng
+                  </p>
+                  <MatchupTable
+                    matchups={historyData.aggregate_matchups}
+                    title="Ai thua ai (ròng)"
+                    mode="loss"
+                  />
+                </section>
               )}
               {!historyLoading && historyData.sessions.length > 0 && (
                 <div className="history-session-list" data-tour="history-sessions">
