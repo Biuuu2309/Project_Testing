@@ -79,6 +79,18 @@ def get_cumulative_scores(session_id: int) -> list[dict]:
     return sorted(totals.values(), key=lambda x: x["total"], reverse=True)
 
 
+def get_active_roster_from_game(game_id: int) -> list[int]:
+    """Người đang active ở bàn sau đổi người (dùng cho ván tiếp theo)."""
+    from services.roster_service import get_active_players
+
+    return [gp.player_id for gp in get_active_players(game_id)]
+
+
+def sync_session_players(session_id: int, player_ids: list[int]) -> None:
+    GameSessionPlayer.query.filter_by(session_id=session_id).delete()
+    _add_session_players(session_id, player_ids)
+
+
 def get_session_player_ids(session_id: int) -> list[int]:
     rows = (
         GameSessionPlayer.query.filter_by(session_id=session_id)
@@ -148,14 +160,21 @@ def discard_ongoing_session(session_id: int) -> GameSession:
     return session
 
 
-def start_next_round(session: GameSession) -> Game:
+def start_next_round(session: GameSession, previous_game_id: int | None = None) -> Game:
+    if previous_game_id:
+        player_ids = get_active_roster_from_game(previous_game_id)
+        if len(player_ids) < 2:
+            player_ids = get_session_player_ids(session.id)
+        sync_session_players(session.id, player_ids)
+    else:
+        player_ids = get_session_player_ids(session.id)
+
     last_round = (
         db.session.query(db.func.max(Game.round_number))
         .filter_by(session_id=session.id)
         .scalar()
         or 0
     )
-    player_ids = get_session_player_ids(session.id)
     game = _create_round_game(session, last_round + 1, player_ids)
     db.session.commit()
     return game

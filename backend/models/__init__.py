@@ -270,3 +270,47 @@ class GameResult(db.Model):
             "finish_position": self.finish_position,
             "calculated_at": to_iso_utc(self.calculated_at),
         }
+
+
+class ActivityLog(db.Model):
+    __tablename__ = "activity_logs"
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey("game_sessions.id"), nullable=True)
+    game_id = db.Column(db.Integer, db.ForeignKey("games.id"), nullable=False)
+    event_type = db.Column(db.String(40), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    actor_player_id = db.Column(db.Integer, db.ForeignKey("players.id"), nullable=True)
+    target_player_id = db.Column(db.Integer, db.ForeignKey("players.id"), nullable=True)
+    action_type_id = db.Column(db.Integer, db.ForeignKey("action_types.id"), nullable=True)
+    points_delta = db.Column(db.Integer, nullable=True)
+    finish_points = db.Column(db.Integer, nullable=True)
+    chat_points = db.Column(db.Integer, nullable=True)
+    penalty_points = db.Column(db.Integer, nullable=True)
+    total_points = db.Column(db.Integer, nullable=True)
+    sort_order = db.Column(db.SmallInteger, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    actor = db.relationship("Player", foreign_keys=[actor_player_id])
+    target = db.relationship("Player", foreign_keys=[target_player_id])
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "session_id": self.session_id,
+            "game_id": self.game_id,
+            "event_type": self.event_type,
+            "description": self.description,
+            "actor_player_id": self.actor_player_id,
+            "actor_name": self.actor.name if self.actor else None,
+            "target_player_id": self.target_player_id,
+            "target_name": self.target.name if self.target else None,
+            "action_type_id": self.action_type_id,
+            "points_delta": self.points_delta,
+            "finish_points": self.finish_points,
+            "chat_points": self.chat_points,
+            "penalty_points": self.penalty_points,
+            "total_points": self.total_points,
+            "sort_order": self.sort_order,
+            "created_at": to_iso_utc(self.created_at),
+        }

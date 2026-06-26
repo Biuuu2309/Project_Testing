@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 
 from extensions import db
 from models import Game, GameSession, Player
+from services.log_service import list_session_activity_logs
 from services.roster_service import MAX_TABLE_PLAYERS
 from services.scoring_service import calculate_game_results, compute_scores
 from services.session_service import (
@@ -41,6 +42,12 @@ def start_session():
 @sessions_bp.get("/ongoing")
 def ongoing_sessions():
     return jsonify(list_ongoing_sessions())
+
+
+@sessions_bp.get("/<int:session_id>/activity-logs")
+def session_activity_logs(session_id):
+    GameSession.query.get_or_404(session_id)
+    return jsonify(list_session_activity_logs(session_id))
 
 
 @sessions_bp.get("/<int:session_id>")
@@ -94,7 +101,7 @@ def complete_round(session_id):
         return jsonify({"error": str(e)}), 400
 
     cumulative = get_cumulative_scores(session_id)
-    next_game = start_next_round(session)
+    next_game = start_next_round(session, previous_game_id=game.id)
 
     return jsonify({
         "completed_round": game.round_number,

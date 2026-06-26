@@ -59,6 +59,8 @@ export const api = {
     }),
   getScores: (gameId) => request(`/games/${gameId}/scores`),
   getHistory: () => request('/games/history'),
+  getSessionActivityLogs: (sessionId) => request(`/sessions/${sessionId}/activity-logs`),
+  getGameActivityLogs: (gameId) => request(`/games/${gameId}/activity-logs`),
   finalizeGame: (gameId) => request(`/games/${gameId}/calculate`, { method: 'POST' }),
   swapRoster: (gameId, exitPlayerId, enterPlayerId) =>
     request(`/games/${gameId}/roster/swap`, {

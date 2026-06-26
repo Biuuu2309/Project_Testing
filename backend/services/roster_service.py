@@ -1,5 +1,6 @@
 from extensions import db
 from models import Game, GamePlayer, GameRosterSwap, Player
+from services.log_service import log_roster_swap
 
 
 MAX_TABLE_PLAYERS = 4
@@ -83,5 +84,8 @@ def swap_roster(game_id: int, exit_player_id: int, enter_player_id: int) -> Game
         action_order=_next_action_order(game_id),
     )
     db.session.add(swap)
+    exit_name = exit_gp.player.name if exit_gp.player else "?"
+    enter_name = enter_player.name
+    log_roster_swap(game_id, exit_name, enter_name, swap.id)
     db.session.commit()
     return swap

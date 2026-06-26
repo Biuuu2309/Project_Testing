@@ -1145,6 +1145,9 @@ function getSessionCumulativeScores(session) {
 }
 
 function HistorySessionDetailModal({ session, onClose }) {
+  const [activityLogs, setActivityLogs] = useState([])
+  const [logsLoading, setLogsLoading] = useState(false)
+
   const playerNames = session.rounds[0]?.players?.map((p) => p.player_name).join(' · ') || ''
   const title = session.isStandalone
     ? session.title
@@ -1158,6 +1161,35 @@ function HistorySessionDetailModal({ session, onClose }) {
         : aggregateSessionMatchups(session.rounds),
     [session],
   )
+
+  useEffect(() => {
+    let cancelled = false
+    const loadLogs = async () => {
+      setLogsLoading(true)
+      try {
+        let data = []
+        if (session.session_id) {
+          data = await api.getSessionActivityLogs(session.session_id)
+        } else if (session.rounds?.length === 1) {
+          data = await api.getGameActivityLogs(session.rounds[0].id)
+        } else if (session.rounds?.length > 1) {
+          const chunks = await Promise.all(
+            session.rounds.map((g) => api.getGameActivityLogs(g.id)),
+          )
+          data = chunks.flat()
+        }
+        if (!cancelled) setActivityLogs(Array.isArray(data) ? data : [])
+      } catch {
+        if (!cancelled) setActivityLogs([])
+      } finally {
+        if (!cancelled) setLogsLoading(false)
+      }
+    }
+    loadLogs()
+    return () => {
+      cancelled = true
+    }
+  }, [session])
 
   const topPlayer = cumulativeScores[0]
   const bottomPlayer = cumulativeScores[cumulativeScores.length - 1]
@@ -1228,6 +1260,17 @@ function HistorySessionDetailModal({ session, onClose }) {
               />
             ) : (
               <p className="hint history-stats-empty">Chưa có dữ liệu đối đầu trong phiên này.</p>
+            )}
+          </section>
+
+          <section className="history-activity-log">
+            <p className="history-subtitle">Nhật ký hành động &amp; kết quả</p>
+            {logsLoading && <p className="hint">Đang tải nhật ký...</p>}
+            {!logsLoading && activityLogs.length === 0 && (
+              <p className="hint">Chưa có nhật ký (ván hoàn thành sau khi cập nhật sẽ có dữ liệu).</p>
+            )}
+            {!logsLoading && activityLogs.length > 0 && (
+              <ActivityLogTable logs={activityLogs} />
             )}
           </section>
 
@@ -1312,6 +1355,23 @@ function CumulativeTable({ scores }) {
         </div>
       ))}
     </div>
+  )
+}
+
+function ActivityLogTable({ logs }) {
+  return (
+    <ul className="activity-log-list">
+      {logs.map((log) => (
+        <li key={log.id} className={`activity-log-item activity-log-${log.event_type}`}>
+          <span className="activity-log-text">{log.description}</span>
+          {log.total_points != null && log.event_type === 'result' && (
+            <span className={`activity-log-total ${log.total_points >= 0 ? 'pos' : 'neg'}`}>
+              {log.total_points > 0 ? `+${log.total_points}` : log.total_points}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
   )
 }
 

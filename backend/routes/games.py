@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request
 from extensions import db
 from models import ActionType, Game, GamePlayer, GameResult, Player, PlayerAction
 from services.roster_service import MAX_TABLE_PLAYERS, swap_roster
-from services.history_service import get_play_history
+from services.log_service import list_game_activity_logs, list_session_activity_logs
 from services.scoring_service import calculate_game_results, compute_scores, record_action
 
 action_types_bp = Blueprint("action_types", __name__, url_prefix="/api/action-types")
@@ -65,6 +65,12 @@ def create_game():
 @games_bp.get("/history")
 def game_history():
     return jsonify(get_play_history())
+
+
+@games_bp.get("/<int:game_id>/activity-logs")
+def game_activity_logs(game_id):
+    Game.query.get_or_404(game_id)
+    return jsonify(list_game_activity_logs(game_id))
 
 
 @games_bp.get("/<int:game_id>")
