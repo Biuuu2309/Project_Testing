@@ -5,7 +5,13 @@ from services.point_rules import effective_base_points
 from services.roster_service import get_active_player_ids
 
 FINISH_TRANSFERS = ((1, 4, 10), (2, 3, 5))
-THUI_POINTS = {"THUI_HEO_DEN": 5, "THUI_HEO_DO": 10}
+THUI_POINTS = {
+    "THUI_HEO_DEN": 5,
+    "THUI_HEO_DO": 10,
+    "THUI_3_DOI_THONG": 5,
+    "THUI_TU_QUY": 10,
+    "THUI_4_DOI_THONG": 10,
+}
 VE_TRANG_WHITE_GAIN = 30
 VE_TRANG_OTHER_PENALTY = 10
 
@@ -163,7 +169,7 @@ def _apply_end_round_penalties(
             _add_matchup(matchups, rank1_id, nhot_id, total_pts)
             if thui:
                 desc = (
-                    f"{player_names[nhot_id]} bị nhốt -20, thúi heo -{extra} "
+                    f"{player_names[nhot_id]} bị nhốt -20, {thui['name']} -{extra} "
                     f"(tổng -{total_pts}) → {player_names[rank1_id]} (nhất) +{total_pts}"
                 )
             else:
@@ -191,7 +197,7 @@ def _apply_end_round_penalties(
         _add_matchup(matchups, receiver_id, thui_id, pts)
         action_log.append({
             "description": (
-                f"{player_names[thui_id]} thúi heo (hạng {rank}) -{pts} → "
+                f"{player_names[thui_id]} {ev.get('name', 'thúi')} (hạng {rank}) -{pts} → "
                 f"{player_names[receiver_id]} (hạng {receiver_rank}) +{pts}"
             ),
             "type": "end_penalty",
@@ -301,6 +307,7 @@ def compute_scores(game_id: int, apply_end_penalties: bool = True) -> dict:
                 "player_id": actor_id,
                 "points": THUI_POINTS[at.code],
                 "code": at.code,
+                "name": at.name,
             })
             action_log.append({
                 "action_id": action.id,

@@ -2,15 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from './api/client'
 import TourGuide from './components/TourGuide'
 import {
-  QuickActionCenter,
-  QuickPlayerListLeft,
-  useQuickGameState,
-} from './components/QuickGameUI'
+  GameGuideBlock,
+  GamePlayerColumns,
+  GameQueueBlock,
+  getGuideMessage,
+  useGameBoardState,
+} from './components/GameBoard'
 import { TOUR_STEPS, TOUR_STORAGE_KEY } from './tourSteps'
 import './App.css'
-
-/** true = giao diện nhanh; đặt false để khôi phục giao diện 3 bước cũ */
-const USE_QUICK_UI = true
 
 const MAX_TABLE = 4
 const STEPS = { ACTOR: 'actor', ACTION: 'action', TARGET: 'target' }
@@ -18,18 +17,6 @@ const MOBILE_TABS = { PLAYERS: 'players', ACTIONS: 'actions', SCORES: 'scores' }
 
 function isMobileLayout() {
   return typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches
-}
-
-const CHAT_CODES = new Set([
-  'CHAT_HEO_DEN',
-  'CHAT_HEO_DO',
-  'CHAT_3_DOI_THONG',
-  'CHAT_4_DOI_THONG',
-  'CHAT_TU_QUY',
-])
-
-function needsTarget(action) {
-  return action?.category === 'chat'
 }
 
 const TIMEZONE = 'Asia/Ho_Chi_Minh'
@@ -134,14 +121,12 @@ function App() {
       return
     }
     if (!isMobileLayout()) return
-    if (!USE_QUICK_UI) {
-      if (swapStep || step === STEPS.ACTOR || step === STEPS.TARGET) {
-        setMobileTab(MOBILE_TABS.PLAYERS)
-      } else if (step === STEPS.ACTION) {
-        setMobileTab(MOBILE_TABS.ACTIONS)
-      }
+    if (swapStep) {
+      setMobileTab(MOBILE_TABS.PLAYERS)
+    } else {
+      setMobileTab(MOBILE_TABS.ACTIONS)
     }
-  }, [gameId, step, swapStep])
+  }, [gameId, swapStep])
 
   const loadPlayers = useCallback(async () => {
     const data = await api.getPlayers()
@@ -319,12 +304,6 @@ function App() {
     }
   }
 
-  const handleSelectActor = (player) => {
-    if (step !== STEPS.ACTOR) return
-    setSelectedActor(player)
-    setStep(STEPS.ACTION)
-  }
-
   const buildActionLabel = (actor, action, target) =>
     [actor?.name, action?.name, target?.name].filter(Boolean).join(' → ')
 
@@ -354,20 +333,6 @@ function App() {
     }))
     setPendingQueue((prev) => [...prev, ...stamped])
     setError('')
-  }
-
-  const handleSelectAction = (action) => {
-    setSelectedAction(action)
-    if (needsTarget(action)) {
-      setStep(STEPS.TARGET)
-    } else {
-      enqueueAction(selectedActor, action)
-    }
-  }
-
-  const handleSelectTarget = (player) => {
-    if (player.id === selectedActor?.id) return
-    enqueueAction(selectedActor, selectedAction, player)
   }
 
   const handleRemoveQueueItem = (id) => {
@@ -516,47 +481,23 @@ function App() {
     [players, activeSet],
   )
 
-  const groupedActions = useMemo(() => {
-    const groups = { finish: [], chat: [], penalty: [] }
-    for (const a of actionTypes) {
-      if (a.category === 'finish') groups.finish.push(a)
-      else if (a.category === 'chat' && CHAT_CODES.has(a.code)) groups.chat.push(a)
-      else if (a.category === 'penalty') groups.penalty.push(a)
-    }
-    return groups
-  }, [actionTypes])
-
-  const stepLabel = swapStep
-    ? swapStep === 'exit'
-      ? 'Chọn người rút khỏi bàn'
-      : `Chọn người vào thay ${swapExit?.name}`
-    : USE_QUICK_UI
-      ? 'Giao diện nhanh — xếp hạng / chặt / phạt'
-      : {
-          [STEPS.ACTOR]: '1. Chọn người chơi',
-          [STEPS.ACTION]: '2. Chọn hành động',
-          [STEPS.TARGET]: '3. Chọn người bị chặt',
-        }[step]
-
-  const quickEnqueue = useCallback(
+  const boardEnqueue = useCallback(
     (player, action, target = null) => enqueueAction(player, action, target, { reset: false }),
     [],
   )
-  const quickEnqueueBatch = useCallback(
-    (items) => enqueueActionBatch(items),
-    [],
-  )
-  const quick = useQuickGameState(actionTypes, tablePlayers, quickEnqueue, quickEnqueueBatch)
+  const boardEnqueueBatch = useCallback((items) => enqueueActionBatch(items), [])
+  const board = useGameBoardState(actionTypes, tablePlayers, boardEnqueue, boardEnqueueBatch)
 
-  useEffect(() => {
-    if (!USE_QUICK_UI || !gameId || !isMobileLayout()) return
-    if (swapStep || quick.chatAction || quick.currentRankDef) {
-      setMobileTab(MOBILE_TABS.PLAYERS)
-    }
-  }, [gameId, swapStep, quick.chatAction, quick.currentRankDef])
+  const guideMessage = getGuideMessage({
+    gameId,
+    swapStep,
+    swapExit,
+    chatDraft: board.chatDraft,
+    currentRankDef: board.currentRankDef,
+    rankDefs: board.rankDefs,
+  })
 
   const panelTabClass = (tab) => (mobileTab === tab ? 'mobile-panel-active' : '')
-  const stepIndex = [STEPS.ACTOR, STEPS.ACTION, STEPS.TARGET].indexOf(step)
 
   return (
     <div className={`app${loading ? ' app--loading' : ''}`}>
@@ -645,7 +586,6 @@ function App() {
 
       <main className="layout">
         <section className={`panel panel-left ${panelTabClass(MOBILE_TABS.PLAYERS)}`}>
-          <h2>Người chơi</h2>
           <form className="add-form" onSubmit={handleAddPlayer}>
             <input
               type="text"
@@ -661,54 +601,9 @@ function App() {
               data-tour="player-add"
               disabled={loading || !newName.trim()}
             >
-              + Thêm
+              + Thêm người chơi
             </button>
           </form>
-
-          {!gameId && ongoingSessions.length > 0 && (
-            <div className="ongoing-sessions">
-              <h3 className="sub-panel-title">Phiên đang dở</h3>
-              <p className="hint ongoing-hint">Chọn phiên để tiếp tục chơi</p>
-              <div className="ongoing-session-list">
-                {ongoingSessions.map((s) => (
-                  <div key={s.session_id} className="ongoing-session-btn">
-                    <button
-                      type="button"
-                      className="ongoing-session-main"
-                      disabled={loading}
-                      onClick={() => resumeSession(s.session_id)}
-                    >
-                      <span className="ongoing-session-title">Phiên #{s.session_id}</span>
-                      <span className="ongoing-session-meta">
-                        Ván {s.round_number}
-                        {s.completed_rounds > 0 && ` · ${s.completed_rounds} ván xong`}
-                      </span>
-                      {s.player_names?.length > 0 && (
-                        <span className="ongoing-session-players">{s.player_names.join(' · ')}</span>
-                      )}
-                      {s.created_at && (
-                        <span className="ongoing-session-date">{formatDate(s.created_at)}</span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-delete ongoing-session-delete"
-                      title="Xóa phiên"
-                      aria-label="Xóa phiên"
-                      disabled={loading}
-                      onClick={() => handleDeleteOngoingSession(s)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {!gameId && (
-            <p className="hint">Chọn 2–{MAX_TABLE} người ở bàn để bắt đầu</p>
-          )}
 
           {gameId && !swapStep && (
             <button type="button" className="btn btn-outline btn-swap" disabled={loading} onClick={startSwap}>
@@ -720,33 +615,6 @@ function App() {
             <button type="button" className="btn btn-link btn-swap-cancel" onClick={cancelSwap}>
               Hủy đổi người
             </button>
-          )}
-
-          {!gameId && (
-            <div className="btn-grid player-picker-scroll" data-tour="player-select">
-              {players.map((p) => (
-                <div key={p.id} className={`player-check ${selectedForTable.includes(p.id) ? 'checked' : ''}`}>
-                  <label className="player-check-label">
-                    <input
-                      type="checkbox"
-                      checked={selectedForTable.includes(p.id)}
-                      onChange={() => toggleTablePlayer(p.id)}
-                      disabled={loading}
-                    />
-                    <span>{p.name}</span>
-                  </label>
-                  <button
-                    type="button"
-                    className="btn-delete"
-                    title="Xóa người chơi"
-                    disabled={loading}
-                    onClick={() => handleDeletePlayer(p)}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
           )}
 
           {gameId && swapStep === 'exit' && (
@@ -784,225 +652,153 @@ function App() {
             </div>
           )}
 
-          {gameId && !swapStep && USE_QUICK_UI && (
-            <QuickPlayerListLeft
-              tablePlayers={tablePlayers}
-              poolPlayers={poolPlayers}
-              quick={quick}
-              actionTypes={actionTypes}
-              loading={loading}
-            />
-          )}
-
-          {/* LEGACY_UI: panel người chơi 3 bước — đặt USE_QUICK_UI = false để bật lại */}
-          {gameId && !swapStep && !USE_QUICK_UI && (
-            <>
-              <p className="section-label">Đang ở bàn</p>
-              <div className="btn-grid" data-tour="table-players">
-                {tablePlayers.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className={[
-                      'btn',
-                      'btn-player',
-                      selectedActor?.id === p.id && step !== STEPS.ACTOR ? 'selected' : '',
-                      step === STEPS.ACTOR ? 'active-step' : '',
-                      step === STEPS.TARGET && selectedActor?.id !== p.id ? 'active-step' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    onClick={() => {
-                      if (step === STEPS.ACTOR) handleSelectActor(p)
-                      else if (step === STEPS.TARGET) handleSelectTarget(p)
-                    }}
-                    disabled={
-                      loading ||
-                      (step !== STEPS.ACTOR && step !== STEPS.TARGET) ||
-                      (step === STEPS.TARGET && p.id === selectedActor?.id)
-                    }
-                  >
-                    {p.name}
-                  </button>
+          {!gameId && ongoingSessions.length > 0 && (
+            <div className="ongoing-sessions">
+              <h3 className="sub-panel-title">Phiên đang dở</h3>
+              <div className="ongoing-session-list">
+                {ongoingSessions.map((s) => (
+                  <div key={s.session_id} className="ongoing-session-btn">
+                    <button
+                      type="button"
+                      className="ongoing-session-main"
+                      disabled={loading}
+                      onClick={() => resumeSession(s.session_id)}
+                    >
+                      <span className="ongoing-session-title">Phiên #{s.session_id}</span>
+                      <span className="ongoing-session-meta">
+                        Ván {s.round_number}
+                        {s.completed_rounds > 0 && ` · ${s.completed_rounds} ván xong`}
+                      </span>
+                      {s.player_names?.length > 0 && (
+                        <span className="ongoing-session-players">{s.player_names.join(' · ')}</span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-delete ongoing-session-delete"
+                      title="Xóa phiên"
+                      disabled={loading}
+                      onClick={() => handleDeleteOngoingSession(s)}
+                    >
+                      ×
+                    </button>
+                  </div>
                 ))}
               </div>
-              {poolPlayers.length > 0 && (
-                <>
-                  <p className="section-label muted">Ngoài bàn (đóng băng / chờ vào)</p>
-                  <div className="frozen-list">
-                    {poolPlayers.map((p) => (
-                      <span key={p.id} className="frozen-chip">
-                        {p.name}
-                      </span>
-                    ))}
-                  </div>
-                </>
-              )}
-            </>
+            </div>
           )}
+
+          <h3 className="sub-panel-title">Tất cả người chơi</h3>
+          {!gameId && <p className="hint">Chọn 2–{MAX_TABLE} người để bắt đầu phiên</p>}
+
+          <div className="btn-grid player-picker-scroll" data-tour="player-select">
+            {players.map((p) => {
+              const atTable = activeSet.has(p.id)
+              return (
+                <div
+                  key={p.id}
+                  className={`player-check ${!gameId && selectedForTable.includes(p.id) ? 'checked' : ''}${gameId && atTable ? ' at-table' : ''}`}
+                >
+                  {!gameId ? (
+                    <label className="player-check-label">
+                      <input
+                        type="checkbox"
+                        checked={selectedForTable.includes(p.id)}
+                        onChange={() => toggleTablePlayer(p.id)}
+                        disabled={loading}
+                      />
+                      <span>{p.name}</span>
+                    </label>
+                  ) : (
+                    <span className="player-check-label player-check-name">
+                      {p.name}
+                      {atTable && <span className="status-tag active-tag">ở bàn</span>}
+                      {!atTable && gameId && <span className="status-tag">ngoài bàn</span>}
+                    </span>
+                  )}
+                  {!gameId && (
+                    <button
+                      type="button"
+                      className="btn-delete"
+                      title="Xóa người chơi"
+                      disabled={loading}
+                      onClick={() => handleDeletePlayer(p)}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
 
           {players.length === 0 && <p className="hint">Chưa có người chơi</p>}
         </section>
 
         <section className={`panel panel-center ${panelTabClass(MOBILE_TABS.ACTIONS)}`}>
-          {gameId && !swapStep && (
-            <div className="queue-bar">
-              <div className="queue-bar-inner">
-                <div className="queue-header">
-                  <span className="queue-label">Danh sách chờ ({pendingQueue.length})</span>
-                  <div className="queue-actions">
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-queue-sm"
-                      disabled={loading || pendingQueue.length === 0}
-                      onClick={handleClearQueue}
-                    >
-                      Xóa hết
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-queue-run"
-                      data-tour="queue-execute"
-                      disabled={loading || pendingQueue.length === 0}
-                      onClick={handleExecuteQueue}
-                    >
-                      {loading ? 'Đang thực hiện...' : `Hoàn thành (${pendingQueue.length})`}
-                    </button>
-                  </div>
-                </div>
-                {pendingQueue.length === 0 ? (
-                  <p className="queue-empty">
-                    {USE_QUICK_UI
-                      ? 'Chưa có hành động — xếp hạng, chặt hoặc phạt để thêm'
-                      : 'Chưa có hành động — chọn người chơi và hành động để thêm tự động'}
-                  </p>
-                ) : (
-                  <ul className="queue-list">
-                    {pendingQueue.map((item, i) => (
-                      <li key={item.id} className="queue-item">
-                        <span className="queue-index">{i + 1}.</span>
-                        <span className="queue-text">{item.label}</span>
-                        <button
-                          type="button"
-                          className="btn-delete queue-delete"
-                          title="Xóa"
-                          disabled={loading}
-                          onClick={() => handleRemoveQueueItem(item.id)}
-                        >
-                          ×
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          )}
+          <div className="board-stack">
+            <GameGuideBlock
+              message={guideMessage}
+              chatDraft={board.chatDraft}
+              chatTargets={board.chatTargets}
+              onPickTarget={board.pickChatTarget}
+              onCancelChat={board.cancelChat}
+              loading={loading}
+            />
 
-          <div className="step-bar">
-            <div className="step-bar-main">
-              {gameId && !swapStep && !USE_QUICK_UI && (
-                <div className="step-progress" aria-hidden="true">
-                  {[STEPS.ACTOR, STEPS.ACTION, STEPS.TARGET].map((s, i) => (
-                    <span
-                      key={s}
-                      className={[
-                        'step-dot',
-                        step === s ? 'active' : '',
-                        stepIndex > i ? 'done' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                    />
-                  ))}
+            {gameId && !swapStep && (
+              <GameQueueBlock
+                pendingQueue={pendingQueue}
+                loading={loading}
+                onClear={handleClearQueue}
+                onExecute={handleExecuteQueue}
+                onRemove={handleRemoveQueueItem}
+              />
+            )}
+
+            {gameId && !swapStep && (
+              <GamePlayerColumns
+                tablePlayers={tablePlayers}
+                actionTypes={actionTypes}
+                board={board}
+                loading={loading}
+              />
+            )}
+
+            {!gameId && (
+              <div className="welcome-card board-welcome">
+                <div className="welcome-card-icon" aria-hidden="true">
+                  <span>♠</span>
+                  <span>♥</span>
+                  <span>♦</span>
+                  <span>♣</span>
                 </div>
-              )}
-              <span className="step-label">{stepLabel}</span>
-            </div>
-            {!USE_QUICK_UI && !swapStep && step !== STEPS.ACTOR && (
-              <button
-                type="button"
-                className="btn-delete step-cancel"
-                title="Hủy chọn"
-                aria-label="Hủy chọn"
-                onClick={resetSelection}
-              >
-                ×
-              </button>
+                <h3>Sẵn sàng chơi</h3>
+                <p>
+                  Thêm người chơi bên trái, chọn 2–{MAX_TABLE} người rồi bấm{' '}
+                  <strong>Bắt đầu phiên</strong>.
+                </p>
+              </div>
             )}
           </div>
-
-          {!gameId && (
-            <div className="welcome-card">
-              <div className="welcome-card-icon" aria-hidden="true">
-                <span>♠</span>
-                <span>♥</span>
-                <span>♦</span>
-                <span>♣</span>
-              </div>
-              <h3>Sẵn sàng chơi</h3>
-              <p>
-                Thêm người chơi bên trái, chọn 2–{MAX_TABLE} người ở bàn rồi bấm{' '}
-                <strong>Bắt đầu phiên</strong>.
-              </p>
-            </div>
-          )}
-
-          {gameId && !swapStep && USE_QUICK_UI && (
-            <QuickActionCenter
-              rankDefs={quick.rankDefs}
-              rankStep={quick.rankStep}
-              rankAssignments={quick.rankAssignments}
-              currentRankDef={quick.currentRankDef}
-              resetRank={quick.resetRank}
-              chatAction={quick.chatAction}
-              chatActor={quick.chatActor}
-              groupedActions={groupedActions}
-              loading={loading}
-              selectChatAction={quick.selectChatAction}
-              cancelChat={quick.cancelChat}
-            />
-          )}
-
-          {/* LEGACY_UI: panel hành động 3 bước */}
-          {!USE_QUICK_UI && !swapStep && step === STEPS.ACTION && (
-            <div data-tour="action-panel">
-              <ActionGroup title="Về bài" actions={groupedActions.finish} onSelect={handleSelectAction} />
-              <ActionGroup title="Chặt" actions={groupedActions.chat} onSelect={handleSelectAction} />
-              <ActionGroup title="Phạt" actions={groupedActions.penalty} onSelect={handleSelectAction} />
-            </div>
-          )}
-
-          {!USE_QUICK_UI && !swapStep && (step === STEPS.ACTOR || step === STEPS.TARGET) && (
-            <p className="hint center-hint">
-              {step === STEPS.ACTOR
-                ? 'Chọn người đang ở bàn (tab Người chơi)'
-                : 'Chọn người bị chặt — sẽ tự thêm vào danh sách chờ'}
-            </p>
-          )}
-
-          {swapStep && (
-            <p className="hint center-hint">
-              {swapStep === 'exit'
-                ? 'Chọn người rút khỏi bàn — điểm sẽ tạm đóng băng'
-                : 'Chọn người vào bàn — bắt đầu tính điểm từ đây'}
-            </p>
-          )}
         </section>
 
         <section className={`panel panel-right ${panelTabClass(MOBILE_TABS.SCORES)}`}>
-          <h2>Kết quả ván {sessionId ? roundNumber : ''}</h2>
-          {cumulativeScores.length > 0 && (
-            <>
-              <h3 className="sub-panel-title">Tổng điểm phiên</h3>
-              <CumulativeTable scores={cumulativeScores} />
-            </>
+          <h2 className="right-section-title">Tổng kết quả phiên</h2>
+          {cumulativeScores.length > 0 ? (
+            <CumulativeTable scores={cumulativeScores} />
+          ) : (
+            <p className="hint">Chưa có dữ liệu tổng phiên</p>
           )}
+
+          <h2 className="right-section-title right-section-gap">
+            Kết quả ván {sessionId ? roundNumber : 'hiện tại'}
+          </h2>
           {!scores && (
             <p className="hint">
               {pendingQueue.length > 0
-                ? 'Bấm Hoàn thành để tính điểm'
-                : 'Điểm sẽ hiển thị sau khi hoàn thành danh sách hành động'}
+                ? 'Bấm Xác nhận & tổng hợp để tính điểm'
+                : 'Điểm hiển thị sau khi xác nhận hành động'}
             </p>
           )}
           {scores && (
@@ -1515,29 +1311,6 @@ function ScoreTable({ scores, compact }) {
             <span className={`total ${s.total >= 0 ? 'pos' : 'neg'}`}>{s.total}</span>
           </div>
         ))}
-    </div>
-  )
-}
-
-function ActionGroup({ title, actions, onSelect }) {
-  if (!actions.length) return null
-  const finishHint = {
-    VE_NHAT: '+10 từ bét',
-    VE_NHI: '+5 từ ba',
-    VE_BA: '-5 cho nhì',
-    VE_BON: '-10 cho nhất',
-  }
-  return (
-    <div className="action-group">
-      <h3>{title}</h3>
-      <div className="btn-grid">
-        {actions.map((a) => (
-          <button key={a.id} type="button" className="btn btn-action" onClick={() => onSelect(a)}>
-            {a.name}
-            <small>{finishHint[a.code] || (a.base_points > 0 ? `+${a.base_points}` : a.base_points)}</small>
-          </button>
-        ))}
-      </div>
     </div>
   )
 }
