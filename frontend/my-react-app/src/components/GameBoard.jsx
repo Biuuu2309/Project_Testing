@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const RANK_DEFS = [
   { code: 'VE_NHAT', label: 'về nhất', short: 'Nhất' },
@@ -31,6 +31,12 @@ function actionByCode(actionTypes, code) {
   return actionTypes.find((a) => a.code === code)
 }
 
+export function hasVeTrangInQueue(pendingQueue, actionTypes) {
+  const veTrangId = actionTypes.find((a) => a.code === 'VE_TRANG')?.id
+  if (!veTrangId) return false
+  return pendingQueue.some((item) => item.action_type_id === veTrangId)
+}
+
 export function isRanksCompleteInQueue(pendingQueue, actionTypes, tablePlayerCount) {
   if (!tablePlayerCount) return false
   const finishIds = new Set(
@@ -46,6 +52,7 @@ export function useGameBoardState(
   onEnqueue,
   onEnqueueBatch,
   ranksLocked,
+  columnsLocked,
 ) {
   const rankDefs = useMemo(
     () => RANK_DEFS.slice(0, tablePlayers.length),
@@ -55,6 +62,10 @@ export function useGameBoardState(
   const [rankStep, setRankStep] = useState(0)
   const [rankAssignments, setRankAssignments] = useState([])
   const [chatDraft, setChatDraft] = useState(null)
+
+  useEffect(() => {
+    if (columnsLocked) setChatDraft(null)
+  }, [columnsLocked])
 
   const pickedIds = useMemo(
     () => new Set(rankAssignments.map((r) => r.player.id)),
@@ -68,7 +79,7 @@ export function useGameBoardState(
   }, [rankAssignments])
 
   const currentRankDef =
-    !ranksLocked && rankStep < rankDefs.length ? rankDefs[rankStep] : null
+    !ranksLocked && !columnsLocked && rankStep < rankDefs.length ? rankDefs[rankStep] : null
 
   const resetRank = () => {
     setRankStep(0)
@@ -76,7 +87,7 @@ export function useGameBoardState(
   }
 
   const handleRankPick = (player) => {
-    if (ranksLocked || !currentRankDef || pickedIds.has(player.id) || chatDraft) return
+    if (columnsLocked || ranksLocked || !currentRankDef || pickedIds.has(player.id) || chatDraft) return
     const action = actionByCode(actionTypes, currentRankDef.code)
     if (!action) return
 
@@ -92,11 +103,12 @@ export function useGameBoardState(
   }
 
   const handlePenalty = (player, action) => {
-    if (chatDraft) return
+    if (chatDraft || columnsLocked) return
     onEnqueue(player, action)
   }
 
   const startChat = (actor, action) => {
+    if (columnsLocked) return
     setChatDraft({ actor, action })
   }
 
@@ -132,6 +144,8 @@ export function getGuideMessage({
   chatDraft,
   currentRankDef,
   ranksLocked,
+  hasVeTrang,
+  actionsSubmitted,
 }) {
   if (swapStep === 'exit') return 'Chọn người rút khỏi bàn — dùng panel bên trái'
   if (swapStep === 'enter') {
@@ -139,6 +153,12 @@ export function getGuideMessage({
   }
   if (!gameId) {
     return 'Thêm người chơi bên trái, chọn 2–4 người rồi bấm Bắt đầu phiên'
+  }
+  if (actionsSubmitted) {
+    return 'Đã xác nhận kết quả ván — bấm Kết thúc ván để sang ván tiếp theo'
+  }
+  if (hasVeTrang) {
+    return 'Có người về trắng trong danh sách — bấm Xác nhận & tổng hợp hoặc xóa mục về trắng'
   }
   if (chatDraft) {
     return `${chatDraft.actor.name} — ${chatDraft.action.name}: bấm tên người bị chặt ở cột bên dưới`
@@ -167,12 +187,12 @@ function formatQueueLabel(item) {
   return item.label
 }
 
-export function GameGuideBlock({ message, chatDraft, onCancelChat, loading }) {
+export function GameGuideBlock({ message, chatDraft, onCancelChat, loading, actionsSubmitted }) {
   return (
     <section className="board-block board-guide" data-tour="action-panel">
       <h3 className="board-block-title">Hướng dẫn</h3>
       <p className="board-guide-text">{message}</p>
-      {chatDraft && (
+      {chatDraft && !actionsSubmitted && (
         <button
           type="button"
           className="btn btn-link board-guide-cancel"
@@ -192,16 +212,17 @@ export function GameQueueBlock({
   onClear,
   onExecute,
   onRemove,
+  actionsSubmitted,
 }) {
   return (
-    <section className="board-block board-queue" data-tour="queue-execute">
+    <section className={`board-block board-queue${actionsSubmitted ? ' board-queue--locked' : ''}`} data-tour="queue-execute">
       <div className="board-queue-header">
         <h3 className="board-block-title">Hành động chờ xác nhận ({pendingQueue.length})</h3>
         <div className="board-queue-actions">
           <button
             type="button"
             className="btn btn-secondary btn-queue-sm"
-            disabled={loading || pendingQueue.length === 0}
+            disabled={loading || pendingQueue.length === 0 || actionsSubmitted}
             onClick={onClear}
           >
             Xóa hết
@@ -209,14 +230,16 @@ export function GameQueueBlock({
           <button
             type="button"
             className="btn btn-primary btn-queue-run"
-            disabled={loading || pendingQueue.length === 0}
+            disabled={loading || pendingQueue.length === 0 || actionsSubmitted}
             onClick={onExecute}
           >
             {loading ? 'Đang tính...' : 'Xác nhận & tổng hợp'}
           </button>
         </div>
       </div>
-      {pendingQueue.length === 0 ? (
+      {actionsSubmitted ? (
+        <p className="hint board-queue-empty">Đã xác nhận — bấm Kết thúc ván để tiếp tục</p>
+      ) : pendingQueue.length === 0 ? (
         <p className="hint board-queue-empty">Chưa có hành động — xếp hạng, phạt hoặc chặt để thêm</p>
       ) : (
         <ul className="queue-list board-queue-list">
@@ -228,7 +251,7 @@ export function GameQueueBlock({
                 type="button"
                 className="btn-delete queue-delete"
                 title="Xóa"
-                disabled={loading}
+                disabled={loading || actionsSubmitted}
                 onClick={() => onRemove(item.id)}
               >
                 ×
@@ -247,6 +270,7 @@ export function GamePlayerColumns({
   board,
   loading,
   ranksLocked,
+  columnsLocked,
 }) {
   const {
     currentRankDef,
@@ -257,10 +281,28 @@ export function GamePlayerColumns({
     handlePenalty,
     startChat,
     pickChatTarget,
+    cancelChat,
   } = board
 
-  const rankActive = Boolean(currentRankDef) && !chatDraft && !ranksLocked
-  const chatTargetMode = Boolean(chatDraft)
+  const rankActive = Boolean(currentRankDef) && !chatDraft && !ranksLocked && !columnsLocked
+  const chatTargetMode = Boolean(chatDraft) && !columnsLocked
+
+  if (columnsLocked) {
+    return (
+      <section className="board-block board-columns board-columns--locked" data-tour="table-players">
+        <h3 className="board-block-title">Người ở bàn</h3>
+        <div className="player-columns-grid">
+          {tablePlayers.map((player) => (
+            <div key={player.id} className="player-column player-column--locked">
+              <button type="button" className="player-column-name rank-locked" disabled>
+                {player.name}
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="board-block board-columns" data-tour="table-players">

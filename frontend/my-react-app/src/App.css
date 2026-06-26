@@ -1892,8 +1892,12 @@
   color: var(--primary-dark);
 }
 
-.player-column--chat-actor .player-column-chat-hint {
-  color: #b45309;
+.board-columns--locked {
+  opacity: 0.92;
+}
+
+.player-column--locked .player-column-name {
+  min-height: 3rem;
 }
 
 .player-column-rank {
@@ -1922,8 +1926,8 @@
 .btn-col-penalty,
 .btn-col-chat {
   width: 100%;
-  padding: 0.35rem 0.4rem;
-  font-size: 0.68rem;
+  padding: 0.4rem 0.45rem;
+  font-size: 0.76rem;
   font-weight: 600;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);

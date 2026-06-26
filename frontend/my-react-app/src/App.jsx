@@ -6,6 +6,7 @@ import {
   GamePlayerColumns,
   GameQueueBlock,
   getGuideMessage,
+  hasVeTrangInQueue,
   isRanksCompleteInQueue,
   useGameBoardState,
 } from './components/GameBoard'
@@ -77,6 +78,7 @@ function App() {
   const [selectedHistorySession, setSelectedHistorySession] = useState(null)
 
   const [pendingQueue, setPendingQueue] = useState([])
+  const [actionsSubmitted, setActionsSubmitted] = useState(false)
   const [ongoingSessions, setOngoingSessions] = useState([])
   const [mobileTab, setMobileTab] = useState(MOBILE_TABS.PLAYERS)
 
@@ -204,10 +206,12 @@ function App() {
       setActivePlayerIds(data.scores?.active_player_ids || playerIds)
       if (data.scores) {
         applyScores(data.scores)
+        setActionsSubmitted(true)
       } else {
         setScores(null)
         setActionLog([])
         setMatchups([])
+        setActionsSubmitted(false)
       }
       setPendingQueue([])
       resetSelection()
@@ -244,6 +248,7 @@ function App() {
       setMatchups([])
       setActivePlayerIds(selectedForTable)
       setPendingQueue([])
+      setActionsSubmitted(false)
       resetSelection()
       setSwapStep(null)
       setSwapExit(null)
@@ -320,7 +325,7 @@ function App() {
   })
 
   const enqueueAction = (actor, action, target = null, { reset = true } = {}) => {
-    if (!actor || !action) return
+    if (!actor || !action || actionsSubmitted) return
     setPendingQueue((prev) => [...prev, makeQueueItem(actor, action, target)])
     if (reset) resetSelection()
     setError('')
@@ -341,6 +346,7 @@ function App() {
   }
 
   const handleClearQueue = () => {
+    if (actionsSubmitted) return
     setPendingQueue([])
   }
 
@@ -357,6 +363,7 @@ function App() {
       const result = await api.addActionsBatch(gameId, payload)
       applyScores(result.scores)
       setPendingQueue([])
+      setActionsSubmitted(true)
       resetSelection()
       if (isMobileLayout()) setMobileTab(MOBILE_TABS.SCORES)
     } catch (err) {
@@ -380,6 +387,7 @@ function App() {
       setMatchups([])
       setActivePlayerIds(result.next_game.players?.map((p) => p.player_id) || [])
       setPendingQueue([])
+      setActionsSubmitted(false)
       resetSelection()
       setSwapStep(null)
       setSwapExit(null)
@@ -408,6 +416,7 @@ function App() {
     setMatchups([])
     setActivePlayerIds([])
     setPendingQueue([])
+    setActionsSubmitted(false)
     resetSelection()
     setSwapStep(null)
     setSwapExit(null)
@@ -491,12 +500,18 @@ function App() {
     () => isRanksCompleteInQueue(pendingQueue, actionTypes, tablePlayers.length),
     [pendingQueue, actionTypes, tablePlayers.length],
   )
+  const hasVeTrang = useMemo(
+    () => hasVeTrangInQueue(pendingQueue, actionTypes),
+    [pendingQueue, actionTypes],
+  )
+  const columnsLocked = hasVeTrang || actionsSubmitted
   const board = useGameBoardState(
     actionTypes,
     tablePlayers,
     boardEnqueue,
     boardEnqueueBatch,
     ranksLocked,
+    columnsLocked,
   )
 
   const guideMessage = getGuideMessage({
@@ -506,6 +521,8 @@ function App() {
     chatDraft: board.chatDraft,
     currentRankDef: board.currentRankDef,
     ranksLocked,
+    hasVeTrang,
+    actionsSubmitted,
   })
 
   const panelTabClass = (tab) => (mobileTab === tab ? 'mobile-panel-active' : '')
@@ -554,7 +571,7 @@ function App() {
                 type="button"
                 className="btn btn-primary"
                 data-tour="end-round"
-                disabled={loading}
+                disabled={loading || !scores}
                 onClick={handleCompleteRound}
               >
                 Kết thúc ván {roundNumber}
@@ -617,7 +634,12 @@ function App() {
           </form>
 
           {gameId && !swapStep && (
-            <button type="button" className="btn btn-outline btn-swap" disabled={loading} onClick={startSwap}>
+            <button
+              type="button"
+              className="btn btn-outline btn-swap"
+              disabled={loading || actionsSubmitted}
+              onClick={startSwap}
+            >
               Đổi người
             </button>
           )}
@@ -753,6 +775,7 @@ function App() {
               chatDraft={board.chatDraft}
               onCancelChat={board.cancelChat}
               loading={loading}
+              actionsSubmitted={actionsSubmitted}
             />
 
             {gameId && !swapStep && (
@@ -762,6 +785,7 @@ function App() {
                 onClear={handleClearQueue}
                 onExecute={handleExecuteQueue}
                 onRemove={handleRemoveQueueItem}
+                actionsSubmitted={actionsSubmitted}
               />
             )}
 
@@ -772,6 +796,7 @@ function App() {
                 board={board}
                 loading={loading}
                 ranksLocked={ranksLocked}
+                columnsLocked={columnsLocked}
               />
             )}
 
