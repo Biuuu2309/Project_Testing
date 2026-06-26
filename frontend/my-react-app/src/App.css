@@ -1275,8 +1275,10 @@
   gap: 0.5rem;
 }
 
-.history-aggregate-stats {
-  margin-bottom: 1.25rem;
+.history-aggregate-entry {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .history-rank-summary {

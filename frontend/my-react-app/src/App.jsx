@@ -77,6 +77,7 @@ function App() {
   })
   const [historyLoading, setHistoryLoading] = useState(false)
   const [selectedHistorySession, setSelectedHistorySession] = useState(null)
+  const [showAggregateStats, setShowAggregateStats] = useState(false)
 
   const [pendingQueue, setPendingQueue] = useState([])
   const [actionsSubmitted, setActionsSubmitted] = useState(false)
@@ -460,6 +461,7 @@ function App() {
   const openHistory = async () => {
     setShowHistory(true)
     setSelectedHistorySession(null)
+    setShowAggregateStats(false)
     setHistoryLoading(true)
     try {
       const data = await api.getHistory()
@@ -478,6 +480,7 @@ function App() {
   const closeHistory = () => {
     setShowHistory(false)
     setSelectedHistorySession(null)
+    setShowAggregateStats(false)
   }
 
   const activeSet = useMemo(() => new Set(activePlayerIds), [activePlayerIds])
@@ -880,20 +883,20 @@ function App() {
                   <p className="hint">Chưa có ván nào được ghi nhận</p>
                 )}
               {!historyLoading && historyData.aggregate_matchups.length > 0 && (
-                <section className="history-session-stats history-aggregate-stats">
-                  <p className="history-section-title">
-                    Thống kê đối đầu (tất cả)
-                    <span className="history-badge">{historyData.aggregate_matchups.length} cặp</span>
-                  </p>
-                  <p className="hint history-stats-hint history-matchup-hint">
-                    Mỗi dòng là kết quả ròng giữa 2 người — xem chi tiết hai chiều bên dưới từng dòng
-                  </p>
-                  <MatchupTable
-                    matchups={historyData.aggregate_matchups}
-                    title="Ai thua ai (ròng)"
-                    mode="loss"
-                  />
-                </section>
+                <div className="history-session-list history-aggregate-entry">
+                  <button
+                    type="button"
+                    className="history-session-btn"
+                    onClick={() => setShowAggregateStats(true)}
+                  >
+                    <span className="history-session-btn-main">
+                      <span className="history-session-btn-title">Thống kê đối đầu (tất cả)</span>
+                    </span>
+                    <span className="history-session-btn-meta">
+                      <span className="history-badge">{historyData.aggregate_matchups.length} cặp</span>
+                    </span>
+                  </button>
+                </div>
               )}
               {!historyLoading && historyData.sessions.length > 0 && (
                 <div className="history-session-list" data-tour="history-sessions">
@@ -932,6 +935,17 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {showAggregateStats && (
+        <HistoryAggregateStatsModal
+          matchups={historyData.aggregate_matchups}
+          totalGames={
+            historyData.sessions.reduce((n, s) => n + (s.rounds?.length || 0), 0) +
+            historyData.standalone_games.length
+          }
+          onClose={() => setShowAggregateStats(false)}
+        />
       )}
 
       {selectedHistorySession && (
@@ -976,6 +990,47 @@ function App() {
           Kết quả
         </button>
       </nav>
+    </div>
+  )
+}
+
+function HistoryAggregateStatsModal({ matchups, totalGames, onClose }) {
+  return (
+    <div className="modal-overlay modal-overlay-detail" onClick={onClose}>
+      <div className="modal modal-detail" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Thống kê đối đầu (tất cả)</h2>
+          <button
+            type="button"
+            className="btn-delete modal-close"
+            title="Đóng"
+            aria-label="Đóng"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
+        <div className="modal-body history-scroll">
+          <div className="history-detail-meta">
+            <span className="history-badge">{matchups.length} cặp</span>
+            {totalGames > 0 && <span className="history-badge">{totalGames} ván</span>}
+          </div>
+
+          <section className="history-session-stats">
+            <p className="history-section-title">Thống kê đối đầu</p>
+            {matchups.length > 0 ? (
+              <>
+                <p className="hint history-stats-hint history-matchup-hint">
+                  Mỗi dòng là kết quả ròng giữa 2 người — xem chi tiết hai chiều bên dưới từng dòng
+                </p>
+                <MatchupTable matchups={matchups} title="Ai thua ai (ròng)" mode="loss" />
+              </>
+            ) : (
+              <p className="hint history-stats-empty">Chưa có dữ liệu đối đầu.</p>
+            )}
+          </section>
+        </div>
+      </div>
     </div>
   )
 }
