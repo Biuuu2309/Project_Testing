@@ -4,6 +4,7 @@ from extensions import db
 from models import ActionType, Game, GamePlayer, GameResult, Player, PlayerAction
 from services.roster_service import MAX_TABLE_PLAYERS, swap_roster
 from services.log_service import list_game_activity_logs, list_session_activity_logs
+from services.history_service import get_play_history
 from services.scoring_service import calculate_game_results, compute_scores, record_action
 
 action_types_bp = Blueprint("action_types", __name__, url_prefix="/api/action-types")

@@ -6,8 +6,8 @@ from services.roster_service import get_active_player_ids
 
 FINISH_TRANSFERS = ((1, 4, 10), (2, 3, 5))
 THUI_POINTS = {"THUI_HEO_DEN": 5, "THUI_HEO_DO": 10}
-VE_TRANG_OTHER_PENALTY = 20
-VE_TRANG_OTHER_PENALTY_ALL_NHOT = 10
+VE_TRANG_WHITE_GAIN = 30
+VE_TRANG_OTHER_PENALTY = 10
 
 
 def calculate_action_points(action_type: ActionType) -> tuple[int, int]:
@@ -238,7 +238,6 @@ def compute_scores(game_id: int, apply_end_penalties: bool = True) -> dict:
     timeline.sort(key=lambda x: (x[0], x[1]))
 
     action_log: list[dict] = []
-    ve_trang_event: dict | None = None
 
     for _, _, kind, item in timeline:
         if kind == "swap":
@@ -273,20 +272,15 @@ def compute_scores(game_id: int, apply_end_penalties: bool = True) -> dict:
         if at.code == "VE_TRANG":
             others = [pid for pid in active_set if pid != actor_id]
             penalty_each = VE_TRANG_OTHER_PENALTY
-            totals[actor_id]["penalty"] += 60
+            totals[actor_id]["penalty"] += VE_TRANG_WHITE_GAIN
             for pid in others:
                 _ensure_player_totals(totals, player_names, pid)
                 totals[pid]["penalty"] -= penalty_each
                 _add_matchup(matchups, actor_id, pid, penalty_each)
-            ve_trang_event = {
-                "actor_id": actor_id,
-                "other_ids": others,
-                "penalty_each": penalty_each,
-            }
             action_log.append({
                 "action_id": action.id,
                 "description": (
-                    f"{player_names[actor_id]} về trắng +60, "
+                    f"{player_names[actor_id]} về trắng +{VE_TRANG_WHITE_GAIN}, "
                     f"{len(others)} người ở bàn mỗi người -{penalty_each}"
                 ),
                 "type": "ve_trang",
@@ -388,30 +382,6 @@ def compute_scores(game_id: int, apply_end_penalties: bool = True) -> dict:
                 "action_id": action.id,
                 "description": f"{player_names[actor_id]}: {at.name} ({actor_pts:+d})",
                 "type": "penalty",
-            })
-
-    if ve_trang_event:
-        actor_id = ve_trang_event["actor_id"]
-        others = ve_trang_event["other_ids"]
-        old_each = ve_trang_event["penalty_each"]
-        if (
-            len(others) == 3
-            and all(pid in nhot_players for pid in others)
-            and old_each > VE_TRANG_OTHER_PENALTY_ALL_NHOT
-        ):
-            delta = old_each - VE_TRANG_OTHER_PENALTY_ALL_NHOT
-            for pid in others:
-                totals[pid]["penalty"] += delta
-                key = (actor_id, pid)
-                if key in matchups:
-                    matchups[key] -= delta
-            totals[actor_id]["penalty"] -= delta * len(others)
-            action_log.append({
-                "description": (
-                    f"Về trắng + 3 người nhốt: mỗi người chỉ bị trừ "
-                    f"{VE_TRANG_OTHER_PENALTY_ALL_NHOT} (thay vì {old_each})"
-                ),
-                "type": "ve_trang_adjust",
             })
 
     _apply_finish_transfers(finish_state, totals, matchups, player_names, action_log)

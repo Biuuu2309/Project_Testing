@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from './api/client'
 import TourGuide from './components/TourGuide'
+import {
+  QuickActionCenter,
+  QuickPlayerListLeft,
+  useQuickGameState,
+} from './components/QuickGameUI'
 import { TOUR_STEPS, TOUR_STORAGE_KEY } from './tourSteps'
 import './App.css'
+
+/** true = giao diện nhanh; đặt false để khôi phục giao diện 3 bước cũ */
+const USE_QUICK_UI = true
 
 const MAX_TABLE = 4
 const STEPS = { ACTOR: 'actor', ACTION: 'action', TARGET: 'target' }
@@ -126,10 +134,12 @@ function App() {
       return
     }
     if (!isMobileLayout()) return
-    if (swapStep || step === STEPS.ACTOR || step === STEPS.TARGET) {
-      setMobileTab(MOBILE_TABS.PLAYERS)
-    } else if (step === STEPS.ACTION) {
-      setMobileTab(MOBILE_TABS.ACTIONS)
+    if (!USE_QUICK_UI) {
+      if (swapStep || step === STEPS.ACTOR || step === STEPS.TARGET) {
+        setMobileTab(MOBILE_TABS.PLAYERS)
+      } else if (step === STEPS.ACTION) {
+        setMobileTab(MOBILE_TABS.ACTIONS)
+      }
     }
   }, [gameId, step, swapStep])
 
@@ -318,20 +328,31 @@ function App() {
   const buildActionLabel = (actor, action, target) =>
     [actor?.name, action?.name, target?.name].filter(Boolean).join(' → ')
 
-  const enqueueAction = (actor, action, target = null) => {
+  const makeQueueItem = (actor, action, target = null) => ({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    actor_player_id: actor.id,
+    actor_name: actor.name,
+    action_type_id: action.id,
+    action_name: action.name,
+    target_player_id: target?.id ?? null,
+    target_name: target?.name ?? null,
+    label: buildActionLabel(actor, action, target),
+  })
+
+  const enqueueAction = (actor, action, target = null, { reset = true } = {}) => {
     if (!actor || !action) return
-    const item = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      actor_player_id: actor.id,
-      actor_name: actor.name,
-      action_type_id: action.id,
-      action_name: action.name,
-      target_player_id: target?.id ?? null,
-      target_name: target?.name ?? null,
-      label: buildActionLabel(actor, action, target),
-    }
-    setPendingQueue((prev) => [...prev, item])
-    resetSelection()
+    setPendingQueue((prev) => [...prev, makeQueueItem(actor, action, target)])
+    if (reset) resetSelection()
+    setError('')
+  }
+
+  const enqueueActionBatch = (items) => {
+    if (!items?.length) return
+    const stamped = items.map((item, i) => ({
+      ...makeQueueItem(item.player, item.action, item.target ?? null),
+      id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+    }))
+    setPendingQueue((prev) => [...prev, ...stamped])
     setError('')
   }
 
@@ -509,11 +530,30 @@ function App() {
     ? swapStep === 'exit'
       ? 'Chọn người rút khỏi bàn'
       : `Chọn người vào thay ${swapExit?.name}`
-    : {
-        [STEPS.ACTOR]: '1. Chọn người chơi',
-        [STEPS.ACTION]: '2. Chọn hành động',
-        [STEPS.TARGET]: '3. Chọn người bị chặt',
-      }[step]
+    : USE_QUICK_UI
+      ? 'Giao diện nhanh — xếp hạng / chặt / phạt'
+      : {
+          [STEPS.ACTOR]: '1. Chọn người chơi',
+          [STEPS.ACTION]: '2. Chọn hành động',
+          [STEPS.TARGET]: '3. Chọn người bị chặt',
+        }[step]
+
+  const quickEnqueue = useCallback(
+    (player, action, target = null) => enqueueAction(player, action, target, { reset: false }),
+    [],
+  )
+  const quickEnqueueBatch = useCallback(
+    (items) => enqueueActionBatch(items),
+    [],
+  )
+  const quick = useQuickGameState(actionTypes, tablePlayers, quickEnqueue, quickEnqueueBatch)
+
+  useEffect(() => {
+    if (!USE_QUICK_UI || !gameId || !isMobileLayout()) return
+    if (swapStep || quick.chatAction || quick.currentRankDef) {
+      setMobileTab(MOBILE_TABS.PLAYERS)
+    }
+  }, [gameId, swapStep, quick.chatAction, quick.currentRankDef])
 
   const panelTabClass = (tab) => (mobileTab === tab ? 'mobile-panel-active' : '')
   const stepIndex = [STEPS.ACTOR, STEPS.ACTION, STEPS.TARGET].indexOf(step)
@@ -744,7 +784,18 @@ function App() {
             </div>
           )}
 
-          {gameId && !swapStep && (
+          {gameId && !swapStep && USE_QUICK_UI && (
+            <QuickPlayerListLeft
+              tablePlayers={tablePlayers}
+              poolPlayers={poolPlayers}
+              quick={quick}
+              actionTypes={actionTypes}
+              loading={loading}
+            />
+          )}
+
+          {/* LEGACY_UI: panel người chơi 3 bước — đặt USE_QUICK_UI = false để bật lại */}
+          {gameId && !swapStep && !USE_QUICK_UI && (
             <>
               <p className="section-label">Đang ở bàn</p>
               <div className="btn-grid" data-tour="table-players">
@@ -820,7 +871,11 @@ function App() {
                   </div>
                 </div>
                 {pendingQueue.length === 0 ? (
-                  <p className="queue-empty">Chưa có hành động — chọn người chơi và hành động để thêm tự động</p>
+                  <p className="queue-empty">
+                    {USE_QUICK_UI
+                      ? 'Chưa có hành động — xếp hạng, chặt hoặc phạt để thêm'
+                      : 'Chưa có hành động — chọn người chơi và hành động để thêm tự động'}
+                  </p>
                 ) : (
                   <ul className="queue-list">
                     {pendingQueue.map((item, i) => (
@@ -846,7 +901,7 @@ function App() {
 
           <div className="step-bar">
             <div className="step-bar-main">
-              {gameId && !swapStep && (
+              {gameId && !swapStep && !USE_QUICK_UI && (
                 <div className="step-progress" aria-hidden="true">
                   {[STEPS.ACTOR, STEPS.ACTION, STEPS.TARGET].map((s, i) => (
                     <span
@@ -864,7 +919,7 @@ function App() {
               )}
               <span className="step-label">{stepLabel}</span>
             </div>
-            {!swapStep && step !== STEPS.ACTOR && (
+            {!USE_QUICK_UI && !swapStep && step !== STEPS.ACTOR && (
               <button
                 type="button"
                 className="btn-delete step-cancel"
@@ -886,11 +941,31 @@ function App() {
                 <span>♣</span>
               </div>
               <h3>Sẵn sàng chơi</h3>
-              <p>Thêm người chơi bên trái, chọn 2–{MAX_TABLE} người ở bàn rồi bấm <strong>Bắt đầu phiên</strong>.</p>
+              <p>
+                Thêm người chơi bên trái, chọn 2–{MAX_TABLE} người ở bàn rồi bấm{' '}
+                <strong>Bắt đầu phiên</strong>.
+              </p>
             </div>
           )}
 
-          {!swapStep && step === STEPS.ACTION && (
+          {gameId && !swapStep && USE_QUICK_UI && (
+            <QuickActionCenter
+              rankDefs={quick.rankDefs}
+              rankStep={quick.rankStep}
+              rankAssignments={quick.rankAssignments}
+              currentRankDef={quick.currentRankDef}
+              resetRank={quick.resetRank}
+              chatAction={quick.chatAction}
+              chatActor={quick.chatActor}
+              groupedActions={groupedActions}
+              loading={loading}
+              selectChatAction={quick.selectChatAction}
+              cancelChat={quick.cancelChat}
+            />
+          )}
+
+          {/* LEGACY_UI: panel hành động 3 bước */}
+          {!USE_QUICK_UI && !swapStep && step === STEPS.ACTION && (
             <div data-tour="action-panel">
               <ActionGroup title="Về bài" actions={groupedActions.finish} onSelect={handleSelectAction} />
               <ActionGroup title="Chặt" actions={groupedActions.chat} onSelect={handleSelectAction} />
@@ -898,7 +973,7 @@ function App() {
             </div>
           )}
 
-          {!swapStep && (step === STEPS.ACTOR || step === STEPS.TARGET) && (
+          {!USE_QUICK_UI && !swapStep && (step === STEPS.ACTOR || step === STEPS.TARGET) && (
             <p className="hint center-hint">
               {step === STEPS.ACTOR
                 ? 'Chọn người đang ở bàn (tab Người chơi)'
