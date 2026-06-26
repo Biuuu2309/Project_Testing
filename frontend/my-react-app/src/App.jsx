@@ -11,6 +11,7 @@ import {
   useGameBoardState,
 } from './components/GameBoard'
 import { TOUR_STEPS, TOUR_STORAGE_KEY } from './tourSteps'
+import { consolidateMatchups, formatMatchupBreakdown } from './utils/matchupUtils'
 import './App.css'
 
 const MAX_TABLE = 4
@@ -839,7 +840,7 @@ function App() {
           {scores && (
             <>
               <ScoreTable scores={scores.scores} />
-              <MatchupTable matchups={matchups} />
+              <MatchupTable matchups={matchups} title="Đối đầu ván (ròng)" mode="loss" />
               {actionLog.length > 0 && (
                 <div className="log">
                   <h3>Lịch sử ván</h3>
@@ -885,8 +886,15 @@ function App() {
                     <span className="history-badge">{historyData.aggregate_matchups.length} cặp</span>
                   </summary>
                   <div className="history-accordion-body history-scroll">
-                    <p className="hint history-stats-hint">Ai ăn ai bao nhiêu điểm qua các ván đã kết thúc</p>
-                    <MatchupTable matchups={historyData.aggregate_matchups} compact />
+                    <p className="hint history-stats-hint">
+                      Đối đầu ròng từng cặp — gộp hai chiều (A ăn B và B ăn A) thành bết lưỡi
+                    </p>
+                    <MatchupTable
+                      matchups={historyData.aggregate_matchups}
+                      compact
+                      title="Ai thua ai (ròng)"
+                      mode="loss"
+                    />
                   </div>
                 </details>
               )}
@@ -998,28 +1006,11 @@ function HistorySessionButton({ session, onClick }) {
 }
 
 function aggregateSessionMatchups(rounds) {
-  const agg = {}
+  const directed = []
   for (const round of rounds || []) {
-    for (const m of round.matchups || []) {
-      const key = `${m.winner_id}-${m.loser_id}`
-      if (!agg[key]) {
-        agg[key] = {
-          winner_id: m.winner_id,
-          loser_id: m.loser_id,
-          winner_name: m.winner_name,
-          loser_name: m.loser_name,
-          points: 0,
-        }
-      }
-      agg[key].points += m.points
-    }
+    directed.push(...(round.matchups || []))
   }
-  return Object.values(agg)
-    .sort((a, b) => b.points - a.points)
-    .map((m) => ({
-      ...m,
-      label: `${m.winner_name} thắng ${m.loser_name} +${m.points}`,
-    }))
+  return consolidateMatchups(directed)
 }
 
 function getSessionCumulativeScores(session) {
@@ -1159,11 +1150,16 @@ function HistorySessionDetailModal({ session, onClose }) {
             )}
 
             {sessionMatchups.length > 0 ? (
-              <MatchupTable
-                matchups={sessionMatchups}
-                title="Ai thua ai bao nhiêu"
-                mode="loss"
-              />
+              <>
+                <p className="hint history-stats-hint history-matchup-hint">
+                  Mỗi dòng là kết quả ròng giữa 2 người — xem chi tiết hai chiều bên dưới từng dòng
+                </p>
+                <MatchupTable
+                  matchups={sessionMatchups}
+                  title="Ai thua ai (ròng)"
+                  mode="loss"
+                />
+              </>
             ) : (
               <p className="hint history-stats-empty">Chưa có dữ liệu đối đầu trong phiên này.</p>
             )}
@@ -1216,7 +1212,7 @@ function HistoryRoundBlock({ game, showStandalone }) {
         <MatchupTable
           matchups={game.matchups}
           compact
-          title="Ai thua ai bao nhiêu"
+          title="Ai thua ai (ròng)"
           mode="loss"
         />
       )}
@@ -1281,33 +1277,43 @@ function ActivityLogTable({ logs }) {
   )
 }
 
-function MatchupTable({ matchups, compact, title = 'Đối đầu', mode = 'win' }) {
-  if (!matchups?.length) return null
+function MatchupTable({ matchups, compact, title = 'Đối đầu ròng', mode = 'loss' }) {
+  const consolidated = useMemo(() => consolidateMatchups(matchups || []), [matchups])
+  if (!consolidated.length) return null
   const lossView = mode === 'loss'
+
   return (
     <div className={`matchup-block ${compact ? 'compact' : ''}${lossView ? ' matchup-block--loss' : ''}`}>
       <h3>{title}</h3>
       <ul className="matchup-list">
-        {matchups.map((m, i) => (
-          <li key={i}>
-            {lossView ? (
-              <>
-                <span className="matchup-loser matchup-focus">{m.loser_name}</span>
-                <span className="matchup-vs">thua</span>
-                <span className="matchup-winner">{m.winner_name}</span>
-                <span className="matchup-detail neg">−{m.points}</span>
-              </>
-            ) : (
-              <>
-                <span className="matchup-winner">{m.winner_name}</span>
-                <span className="matchup-vs">thắng</span>
-                <span className="matchup-loser">{m.loser_name}</span>
-                <span className="matchup-detail">
-                  <span className="pos">+{m.points}</span>
-                  <span className="matchup-detail-sep">·</span>
-                  <span className="neg">−{m.points}</span>
-                </span>
-              </>
+        {consolidated.map((m) => (
+          <li key={`${m.player_a_id}-${m.player_b_id}`} className="matchup-list-item">
+            <div className="matchup-net-row">
+              {m.is_tie ? (
+                <>
+                  <span className="matchup-winner">{m.player_a_name}</span>
+                  <span className="matchup-vs">hòa</span>
+                  <span className="matchup-loser">{m.player_b_name}</span>
+                  <span className="matchup-detail">0</span>
+                </>
+              ) : lossView ? (
+                <>
+                  <span className="matchup-loser matchup-focus">{m.loser_name}</span>
+                  <span className="matchup-vs">thua ròng</span>
+                  <span className="matchup-winner">{m.winner_name}</span>
+                  <span className="matchup-detail neg">−{m.points}</span>
+                </>
+              ) : (
+                <>
+                  <span className="matchup-winner">{m.winner_name}</span>
+                  <span className="matchup-vs">lời ròng</span>
+                  <span className="matchup-loser">{m.loser_name}</span>
+                  <span className="matchup-detail pos">+{m.points}</span>
+                </>
+              )}
+            </div>
+            {(m.gross_a_beats_b > 0 || m.gross_b_beats_a > 0) && (
+              <p className="matchup-breakdown">{formatMatchupBreakdown(m)}</p>
             )}
           </li>
         ))}

@@ -1,5 +1,6 @@
 from models import Game, GameSession
 from utils.datetime_util import to_iso_utc
+from services.matchup_service import consolidate_matchups
 from services.scoring_service import compute_scores
 from services.session_service import get_cumulative_scores
 
@@ -36,11 +37,7 @@ def _merge_matchups(aggregate: dict, matchups: list) -> None:
 
 
 def _format_aggregate(aggregate: dict) -> list[dict]:
-    items = list(aggregate.values())
-    for m in items:
-        m["label"] = f"{m['winner_name']} thắng {m['loser_name']} +{m['points']}"
-    items.sort(key=lambda x: x["points"], reverse=True)
-    return items
+    return consolidate_matchups(list(aggregate.values()))
 
 
 def get_play_history(limit: int = 200) -> dict:
