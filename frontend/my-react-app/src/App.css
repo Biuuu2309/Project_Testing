@@ -1281,6 +1281,118 @@
   border-bottom: 1px solid #e2e8f0;
 }
 
+.btn-debt-open {
+  position: relative;
+  gap: 0.35rem;
+}
+
+.header-debt-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #fef2f2;
+  color: #b91c1c;
+  border-radius: 999px;
+  border: 1px solid #fecaca;
+}
+
+.debt-intro {
+  margin: 0 0 0.75rem;
+}
+
+.debt-empty {
+  margin: 0;
+}
+
+.debt-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+}
+
+.debt-stats-block {
+  margin-bottom: 1rem;
+}
+
+.debt-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.debt-list-item {
+  padding: 0.55rem 0.65rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.debt-list-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.debt-debtor {
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+.debt-creditor {
+  font-weight: 600;
+  color: #047857;
+}
+
+.debt-amount {
+  margin-left: auto;
+  font-weight: 700;
+}
+
+.btn-debt-settle {
+  align-self: flex-start;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.65rem;
+}
+
+.debt-settlements {
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.debt-settlement-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.debt-settlement-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.5rem;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
 .history-rank-summary {
   display: flex;
   flex-wrap: wrap;

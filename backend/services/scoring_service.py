@@ -529,5 +529,8 @@ def calculate_game_results(game_id: int, apply_end_penalties: bool = True) -> tu
 
     game.status = "completed"
     rebuild_activity_logs(game_id, data)
+    from services.debt_service import apply_matchups_to_debts
+
+    apply_matchups_to_debts(data.get("matchups", []), game_id=game_id)
     db.session.commit()
     return results, data

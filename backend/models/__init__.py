@@ -314,3 +314,59 @@ class ActivityLog(db.Model):
             "sort_order": self.sort_order,
             "created_at": to_iso_utc(self.created_at),
         }
+
+
+class PlayerDebt(db.Model):
+    __tablename__ = "player_debts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    creditor_id = db.Column(db.Integer, db.ForeignKey("players.id"), nullable=False)
+    debtor_id = db.Column(db.Integer, db.ForeignKey("players.id"), nullable=False)
+    amount = db.Column(db.Integer, nullable=False, default=0)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    creditor = db.relationship("Player", foreign_keys=[creditor_id])
+    debtor = db.relationship("Player", foreign_keys=[debtor_id])
+
+    __table_args__ = (
+        db.UniqueConstraint("creditor_id", "debtor_id", name="uk_player_debt"),
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "creditor_id": self.creditor_id,
+            "creditor_name": self.creditor.name if self.creditor else None,
+            "debtor_id": self.debtor_id,
+            "debtor_name": self.debtor.name if self.debtor else None,
+            "amount": self.amount,
+            "updated_at": to_iso_utc(self.updated_at),
+        }
+
+
+class DebtSettlement(db.Model):
+    __tablename__ = "debt_settlements"
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    creditor_id = db.Column(db.Integer, db.ForeignKey("players.id"), nullable=False)
+    debtor_id = db.Column(db.Integer, db.ForeignKey("players.id"), nullable=False)
+    amount = db.Column(db.Integer, nullable=False)
+    game_id = db.Column(db.Integer, db.ForeignKey("games.id"), nullable=True)
+    note = db.Column(db.String(255))
+    settled_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    creditor = db.relationship("Player", foreign_keys=[creditor_id])
+    debtor = db.relationship("Player", foreign_keys=[debtor_id])
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "creditor_id": self.creditor_id,
+            "creditor_name": self.creditor.name if self.creditor else None,
+            "debtor_id": self.debtor_id,
+            "debtor_name": self.debtor.name if self.debtor else None,
+            "amount": self.amount,
+            "game_id": self.game_id,
+            "note": self.note,
+            "settled_at": to_iso_utc(self.settled_at),
+        }

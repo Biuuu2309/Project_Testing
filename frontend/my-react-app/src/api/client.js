@@ -61,6 +61,12 @@ export const api = {
   getHistory: () => request('/games/history'),
   getSessionActivityLogs: (sessionId) => request(`/sessions/${sessionId}/activity-logs`),
   getGameActivityLogs: (gameId) => request(`/games/${gameId}/activity-logs`),
+  getDebts: () => request('/debts'),
+  settleDebt: (creditorId, debtorId) =>
+    request('/debts/settle', {
+      method: 'POST',
+      body: JSON.stringify({ creditor_id: creditorId, debtor_id: debtorId }),
+    }),
   finalizeGame: (gameId) => request(`/games/${gameId}/calculate`, { method: 'POST' }),
   swapRoster: (gameId, exitPlayerId, enterPlayerId) =>
     request(`/games/${gameId}/roster/swap`, {

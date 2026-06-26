@@ -3,6 +3,7 @@ from flask_cors import CORS
 
 from config import Config
 from extensions import db
+from routes.debts import debts_bp
 from routes.games import action_types_bp, games_bp
 from routes.players import players_bp
 from routes.sessions import sessions_bp
@@ -19,6 +20,7 @@ def create_app(config_class=Config):
     app.register_blueprint(action_types_bp)
     app.register_blueprint(games_bp)
     app.register_blueprint(sessions_bp)
+    app.register_blueprint(debts_bp)
 
     @app.get("/api/health")
     def health():

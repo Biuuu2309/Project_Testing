@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from './api/client'
 import TourGuide from './components/TourGuide'
+import DebtModal from './components/DebtModal'
 import {
   GameGuideBlock,
   GamePlayerColumns,
@@ -78,6 +79,8 @@ function App() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [selectedHistorySession, setSelectedHistorySession] = useState(null)
   const [showAggregateStats, setShowAggregateStats] = useState(false)
+  const [showDebtModal, setShowDebtModal] = useState(false)
+  const [debtCount, setDebtCount] = useState(0)
 
   const [pendingQueue, setPendingQueue] = useState([])
   const [actionsSubmitted, setActionsSubmitted] = useState(false)
@@ -152,11 +155,21 @@ function App() {
     }
   }, [])
 
+  const loadDebtCount = useCallback(async () => {
+    try {
+      const data = await api.getDebts()
+      const list = Array.isArray(data.debts) ? data.debts : []
+      setDebtCount(list.filter((d) => !d.is_tie && d.points > 0).length)
+    } catch {
+      setDebtCount(0)
+    }
+  }, [])
+
   useEffect(() => {
-    Promise.all([loadPlayers(), loadActionTypes(), loadOngoingSessions()]).catch((e) =>
-      setError(e.message),
+    Promise.all([loadPlayers(), loadActionTypes(), loadOngoingSessions(), loadDebtCount()]).catch(
+      (e) => setError(e.message),
     )
-  }, [loadPlayers, loadActionTypes, loadOngoingSessions])
+  }, [loadPlayers, loadActionTypes, loadOngoingSessions, loadDebtCount])
 
   useEffect(() => {
     if (!gameId) {
@@ -394,6 +407,7 @@ function App() {
       setSwapStep(null)
       setSwapExit(null)
       setMobileTab(MOBILE_TABS.ACTIONS)
+      await loadDebtCount()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -423,6 +437,7 @@ function App() {
     setSwapStep(null)
     setSwapExit(null)
     await loadOngoingSessions()
+    await loadDebtCount()
   }
 
   const startSwap = () => {
@@ -547,6 +562,16 @@ function App() {
           )}
         </div>
         <div className="header-actions">
+          <button
+            type="button"
+            className="btn btn-outline btn-debt-open"
+            title="Theo dõi nợ"
+            disabled={loading}
+            onClick={() => setShowDebtModal(true)}
+          >
+            Xem nợ
+            {debtCount > 0 && <span className="header-debt-badge">{debtCount}</span>}
+          </button>
           <button
             type="button"
             className="btn btn-outline btn-tour-help"
@@ -858,6 +883,16 @@ function App() {
           )}
         </section>
       </main>
+
+      {showDebtModal && (
+        <DebtModal
+          open={showDebtModal}
+          onClose={() => setShowDebtModal(false)}
+          onDebtsChange={(list) =>
+            setDebtCount((list || []).filter((d) => !d.is_tie && d.points > 0).length)
+          }
+        />
+      )}
 
       {showHistory && (
         <div className="modal-overlay" onClick={closeHistory}>
